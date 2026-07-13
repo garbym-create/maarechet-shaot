@@ -867,6 +867,58 @@ function importJson(file) {
   reader.readAsText(file);
 }
 
+/* ===== הדפסת סדין מלא — 6 עמודות לעמוד, כל השבוע ===== */
+const SHEET_COLS_PER_PAGE = 6;
+
+function printBoard(mode) { // 'class' | 'teacher'
+  const cols = mode === 'class'
+    ? state.classes.map(c => ({ id: c.id, name: c.name, sub: (teacher(c.homeroomTeacherId) || {}).name || '' }))
+    : state.teachers.map(t => ({ id: t.id, name: t.name, sub: t.role || '' }));
+  if (!cols.length) { toast('אין מה להדפיס עדיין'); return; }
+
+  const chunks = [];
+  for (let i = 0; i < cols.length; i += SHEET_COLS_PER_PAGE) chunks.push(cols.slice(i, i + SHEET_COLS_PER_PAGE));
+
+  const title = (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
+    (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + esc(state.settings.year || '');
+
+  document.getElementById('print-sheets').innerHTML = chunks.map((chunk, pi) => {
+    let h = '<section class="print-page"><h2 class="sheet-title">' + title +
+      (chunks.length > 1 ? ' (עמוד ' + (pi + 1) + ' מתוך ' + chunks.length + ')' : '') + '</h2>';
+    h += '<table class="sheet-table"><tr><th class="w1">יום</th><th class="w1">שעה</th>' +
+      chunk.map(c => '<th>' + esc(c.name) + (c.sub ? '<br><small>' + esc(c.sub) + '</small>' : '') + '</th>').join('') + '</tr>';
+    for (const day of DAYS) {
+      const hrs = hoursFor(day);
+      if (!hrs) continue;
+      for (let hr = 1; hr <= hrs; hr++) {
+        h += '<tr' + (hr === 1 ? ' class="day-start"' : '') + '>';
+        if (hr === 1) h += '<td class="dcell" rowspan="' + hrs + '">' + day + "'</td>";
+        h += '<td class="hcell">' + hr + '</td>';
+        for (const c of chunk) {
+          const ls = state.lessons.filter(l => l.day === day && l.hour === hr &&
+            (mode === 'class' ? l.classIds.includes(c.id) : l.teacherIds.includes(c.id)));
+          h += '<td>' + ls.map(l => {
+            const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : (l.type !== 'פרונטלי' ? l.type : '');
+            const who = mode === 'class'
+              ? l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ')
+              : l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
+            return '<div class="pcell"><b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') +
+              (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + '</div>';
+          }).join('') + '</td>';
+        }
+        h += '</tr>';
+      }
+    }
+    return h + '</table></section>';
+  }).join('');
+
+  document.body.classList.add('printing-board');
+  const cleanup = () => { document.body.classList.remove('printing-board'); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 3000); // רשת ביטחון אם afterprint לא נורה
+}
+
 /* ===== טאבים ורינדור כללי ===== */
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -989,6 +1041,8 @@ function init() {
   document.getElementById('personal-kind').addEventListener('change', renderPersonal);
   document.getElementById('personal-target').addEventListener('change', renderPersonal);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
+  document.getElementById('btn-print-classes').addEventListener('click', () => printBoard('class'));
+  document.getElementById('btn-print-teachers').addEventListener('click', () => printBoard('teacher'));
 
   // חלונית
   document.getElementById('modal-close').addEventListener('click', closeModal);

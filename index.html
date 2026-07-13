@@ -54,13 +54,15 @@
 <main>
   <!-- לוח כיתות -->
   <section id="tab-classes-board" class="tab-panel active">
-    <div class="board-hint no-print">לחיצה על תא פותחת חלונית שיבוץ. שיעור משותף לכמה כיתות מופיע בכולן אוטומטית.</div>
+    <div class="board-hint no-print">לחיצה על תא פותחת חלונית שיבוץ. שיעור משותף לכמה כיתות מופיע בכולן אוטומטית.
+      <button class="btn small" id="btn-print-classes">🖨️ הדפסת הסדין המלא</button></div>
     <div class="board-wrap" id="classes-board-wrap"></div>
   </section>
 
   <!-- לוח מורים -->
   <section id="tab-teachers-board" class="tab-panel">
-    <div class="board-hint no-print">כאן משבצים גם שעות ללא כיתה (שהות / פרטני / תפקיד). הסיכום בראש כל עמודה מתעדכן חי: פרונטלי + פרטני + שהות.</div>
+    <div class="board-hint no-print">כאן משבצים גם שעות ללא כיתה (שהות / פרטני / תפקיד). הסיכום בראש כל עמודה מתעדכן חי: פרונטלי + פרטני + שהות.
+      <button class="btn small" id="btn-print-teachers">🖨️ הדפסת הסדין המלא</button></div>
     <div class="board-wrap" id="teachers-board-wrap"></div>
   </section>
 
@@ -223,6 +225,8 @@
     </div>
   </div>
 </div>
+
+<div id="print-sheets"></div>
 
 <div id="toast" class="toast" hidden></div>
 
