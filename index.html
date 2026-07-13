@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -126,8 +126,9 @@
       </div>
 
       <div class="setup-card wide" id="card-class-quotas">
-        <h2>🎯 תקן שעות שבועי לכיתה לפי מקצוע</h2>
-        <p class="section-hint">כמה שעות מכל מקצוע מגיעות לכל כיתה בשבוע (למשל: אנגלית 4, מדעים 5). השאירי ריק אם לא רלוונטי.</p>
+        <h2>🎯 תקן שעות שבועי לכיתה לפי מקצוע
+          <button class="btn small add" id="btn-load-quota">📥 טעינת תקן תשפ"ז בלחיצה</button></h2>
+        <p class="section-hint">כמה שעות מכל מקצוע מגיעות לכל כיתה בשבוע (למשל: אנגלית 4, מדעים 5). השאירי ריק אם לא רלוונטי. הכפתור למעלה ממלא אוטומטית את התקן שעודכן לתשפ"ז — לפי שכבת כל כיתה, בלי לגעת בשאר.</p>
         <div class="table-scroll"><table class="setup-table matrix" id="class-quotas-table"></table></div>
       </div>
 
@@ -230,6 +231,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

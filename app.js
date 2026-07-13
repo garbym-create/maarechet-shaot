@@ -881,6 +881,44 @@ function loadSampleData() {
   toast('הרשימות נטענו — עכשיו אפשר להתאים אותן לשנה החדשה ✓');
 }
 
+/* ===== תקן שעות תשפ"ז — לפי עדכון המשתמשת ===== */
+const QUOTA_TASHPAZ = [
+  ['מלונאות', { 'י': 6, 'יא': 6, 'יב': 6 }],                 // מלונאות תמיד 6
+  ['אנגלית', { 'ז': 2, 'ח': 2 }],                             // אנגלית ז-ח 2
+  ['אנגלית מתקדמים', { 'ט': 4 }],                             // אנגלית ט מתקדמים 4
+  ['אנגלית בסיס', { 'ט': 2 }],                                // אנגלית ט בסיס 2
+  ['עיצוב שיער', { 'י': 5, 'יא': 6, 'יב': 2 }],               // עיצוב שיער י 5, יא 6, יב 2
+  ['מתמטיקה', { 'ז': 3, 'ח': 4, 'ט': 4, 'יב': 2 }],           // מתמטיקה ז 3, ח-ט 4, יב 2
+  ['מתמטיקה מתקדמים', { 'י': 5, 'יא': 5 }],                   // י-יא מתקדמים 5
+  ["חינוך פיננסי (מתמ' בסיס)", { 'י': 2, 'יא': 2 }],          // י-יא בסיס 2 (חינוך פיננסי)
+  ['חינוך פיננסי מתקדמים', { 'י': 1, 'יא': 1, 'יב': 1 }],     // חינוך פיננסי מתקדמים י-יב 1
+  ['תזונה', { 'י': 2 }],                                       // תזונה י 2
+  ['תזונה פנימי', { 'יא': 3 }],                                // תזונה יא 3 לפנימי
+  ['תזונה בגרות', { 'יא': 4 }],                                // תזונה יא 4 לבגרות
+  ['מד"ט', { 'י': 1, 'יא': 1, 'יב': 1 }]                       // מד"ט י-יב 1
+];
+
+function classGrade(name) {
+  const m = (name || '').trim().match(/^(יג|יב|יא|י|ט|ח|ז)/);
+  return m ? m[1] : null;
+}
+
+function loadQuotaTashpaz() {
+  if (!state.classes.length) { toast('קודם צריך להגדיר כיתות'); return; }
+  if (!confirm('יוגדר תקן שעות תשפ"ז למקצועות שברשימת העדכון, לפי שכבת כל כיתה.\nמקצועות אחרים ותקנים שכבר הגדרת ידנית למקצועות אחרים — לא ייגעו.\nלהמשיך?')) return;
+  let created = 0, set = 0;
+  for (const [name, byGrade] of QUOTA_TASHPAZ) {
+    let sb = state.subjects.find(s => s.name === name);
+    if (!sb) { sb = { id: uid(), name, color: nextColor() }; state.subjects.push(sb); created++; }
+    for (const c of state.classes) {
+      const g = classGrade(c.name);
+      if (g && byGrade[g] != null) { setClassQuota(c, sb.id, byGrade[g]); set++; }
+    }
+  }
+  save(); renderAll();
+  toast('✓ הוגדרו ' + set + ' תקני שעות' + (created ? ', נוצרו ' + created + ' מקצועות חדשים' : ''));
+}
+
 /* ===== ייצוא / ייבוא ===== */
 function exportJson() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -1081,6 +1119,7 @@ function init() {
 
   // נתונים
   document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
+  document.getElementById('btn-load-quota').addEventListener('click', loadQuotaTashpaz);
   document.getElementById('btn-clear-lessons').addEventListener('click', () => {
     if (!confirm('למחוק את כל השיבוצים? המורים, הכיתות והמקצועות יישארו.')) return;
     state.lessons = []; save(); renderAll(); toast('כל השיבוצים נמחקו');
