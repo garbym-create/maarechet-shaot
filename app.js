@@ -719,8 +719,9 @@ function updateAssignModeUI() {
 
   if (teacherEach) {
     const holder = document.getElementById('split-subjects');
-    const prev = {};
+    const prev = {}, prevG = {};
     holder.querySelectorAll('select').forEach(s => { prev[s.dataset.tid] = s.value; });
+    holder.querySelectorAll('input[data-tid]').forEach(i => { prevG[i.dataset.tid] = i.value; });
     const mainSubject = resolveSubjectId(false);
     holder.innerHTML = checkedTeachers.map(tid => {
       const t = teacher(tid);
@@ -728,7 +729,9 @@ function updateAssignModeUI() {
       return '<div class="split-line"><span>' + esc(t ? t.name : '') + '</span><select data-tid="' + tid + '">' +
         '<option value="">— ללא מקצוע —</option>' +
         state.subjects.map(sb => '<option value="' + sb.id + '"' + (def === sb.id ? ' selected' : '') + '>' + esc(sb.name) + '</option>').join('') +
-        '</select></div>';
+        '</select>' +
+        '<input type="text" data-tid="' + tid + '" list="group-datalist" class="group-input" placeholder="קבוצה (מתקדמים...)" value="' + esc(prevG[tid] || '') + '">' +
+        '</div>';
     }).join('');
   }
 }
@@ -771,10 +774,12 @@ function saveLessonFromModal() {
   if (teacherEachMode) {
     const sels = [...document.querySelectorAll('#split-subjects select')];
     for (const s of sels) {
-      state.lessons.push(Object.assign({ id: uid(), classIds, teacherIds: [s.dataset.tid] }, common, { subjectId: s.value || null }));
+      const group = (document.querySelector('#split-subjects input[data-tid="' + s.dataset.tid + '"]') || {}).value || '';
+      state.lessons.push(Object.assign({ id: uid(), classIds, teacherIds: [s.dataset.tid] }, common,
+        { subjectId: s.value || null, note: group.trim() || common.note }));
     }
     save(); closeModal(); renderAllBoards();
-    toast(sels.length + ' שיבוצים נשמרו — אחד לכל מורה ✓');
+    toast(sels.length + ' שיבוצים נשמרו — קבוצה לכל מורה ✓');
     return;
   }
   const data = Object.assign({ teacherIds, classIds }, common);

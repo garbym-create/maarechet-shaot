@@ -187,12 +187,20 @@
         <label>מה כל מורה עושה</label>
         <div class="radio-group">
           <label class="radio-line"><input type="radio" name="teacher-mode" value="together" checked> 🤝 מלמדים יחד את אותו השיעור</label>
-          <label class="radio-line"><input type="radio" name="teacher-mode" value="each"> 📚 כל מורה מלמד/ת תוכן משלו — באותה שעה ובאותה כיתה</label>
+          <label class="radio-line"><input type="radio" name="teacher-mode" value="each"> 📚 חלוקה לקבוצות — כל מורה לוקח/ת קבוצה עם מקצוע משלו (מתקדמים/בסיס, עד 3 קבוצות ויותר)</label>
         </div>
       </div>
       <div class="form-row" id="split-subjects-row" hidden>
-        <label>מקצוע לכל מורה</label>
+        <label>מקצוע וקבוצה לכל מורה</label>
         <div id="split-subjects" class="split-list"></div>
+        <datalist id="group-datalist">
+          <option value="מתקדמים"></option>
+          <option value="בסיס"></option>
+          <option value="קבוצה 1"></option>
+          <option value="קבוצה 2"></option>
+          <option value="קבוצה 3"></option>
+          <option value="שאר הכיתה"></option>
+        </datalist>
       </div>
       <div class="form-row" id="split-teachers-row" hidden>
         <label>מורה לכל כיתה <span class="mini-hint">(ברירת מחדל: המחנכת)</span></label>
