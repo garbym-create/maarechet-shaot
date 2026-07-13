@@ -651,9 +651,10 @@ function fillModal() {
         const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
         const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
         return '<div class="slot-lesson-row' + (l.id === ctx.editingId ? ' editing' : '') + '">' +
-          '<span class="grow">' + esc(sub) + (who ? ' · ' + esc(who) : '') + '</span>' +
+          '<span class="grow">' + esc(sub) + (who ? ' · ' + esc(who) : '') + (l.note ? ' <small>(' + esc(l.note) + ')</small>' : '') + '</span>' +
           (l.id === ctx.editingId ? '<span style="font-size:.75rem;color:var(--primary);font-weight:700">בעריכה</span>'
-            : '<button class="btn small" data-edit="' + l.id + '">✏️ עריכה</button>') + '</div>';
+            : '<button class="btn small" data-edit="' + l.id + '">✏️ עריכה</button>') +
+          '<button class="btn small danger" data-del="' + l.id + '" title="מחיקת השיבוץ הזה">🗑</button></div>';
       }).join('') +
       (ctx.editingId ? '<button class="btn small add" id="btn-new-in-slot">+ שיבוץ נוסף באותו תא</button>' : '');
   } else {
@@ -661,6 +662,15 @@ function fillModal() {
   }
   holder.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
     modalCtx.editingId = b.dataset.edit; fillModal();
+  }));
+  holder.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    if (!confirm('למחוק את השיבוץ הזה?')) return;
+    state.lessons = state.lessons.filter(l => l.id !== b.dataset.del);
+    if (modalCtx.editingId === b.dataset.del) modalCtx.editingId = null;
+    const remaining = slotLessonsFor(modalCtx);
+    if (!modalCtx.editingId && remaining.length === 1) modalCtx.editingId = remaining[0].id;
+    save(); renderAllBoards(); fillModal();
+    toast('השיבוץ נמחק ✓');
   }));
   const newBtn = document.getElementById('btn-new-in-slot');
   if (newBtn) newBtn.addEventListener('click', () => { modalCtx.editingId = null; fillModal(); });
