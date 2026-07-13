@@ -614,20 +614,28 @@ function pasteLessonTo(day, hour, classId) {
   const allTeachers = [...new Set(copySource.lessons.flatMap(l => l.teacherIds))];
   const blocked = freeDayViolators(allTeachers, day);
   if (blocked.length) { toast('⛔ יום ' + day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
-  let added = 0, skipped = 0;
+  let added = 0, skipped = 0, sharedPaste = false;
   for (const src of copySource.lessons) {
+    // שיעור משותף לכמה כיתות נשאר משותף בהדבקה (כשמדביקים באחת מהכיתות שלו);
+    // שיעור של כיתה אחת מודבק לכיתה שלוחצים עליה
+    const targetClasses = (src.classIds.length > 1 && src.classIds.includes(classId))
+      ? [...src.classIds] : [classId];
+    if (targetClasses.length > 1) sharedPaste = true;
     const dup = state.lessons.some(l => l.day === day && l.hour === hour &&
-      l.classIds.includes(classId) && l.subjectId === src.subjectId &&
+      l.subjectId === src.subjectId &&
+      JSON.stringify([...l.classIds].sort()) === JSON.stringify([...targetClasses].sort()) &&
       JSON.stringify([...l.teacherIds].sort()) === JSON.stringify([...src.teacherIds].sort()));
     if (dup) { skipped++; continue; }
     state.lessons.push({
-      id: uid(), day, hour, classIds: [classId],
+      id: uid(), day, hour, classIds: targetClasses,
       teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note
     });
     added++;
   }
   save(); renderAllBoards();
-  toast(added ? '✓ הודבקו ' + added + (skipped ? ' (' + skipped + ' כבר היו בתא)' : '') + ' — ובסיום ✔' : 'הכל כבר קיים בתא הזה');
+  toast(added
+    ? '✓ הודבקו ' + added + (sharedPaste ? ' — שיעור משותף, נכנס לכל הכיתות שלו' : '') + (skipped ? ' (' + skipped + ' כבר היו)' : '')
+    : 'הכל כבר קיים בתא הזה');
 }
 
 /* ===== חלונית שיבוץ ===== */
