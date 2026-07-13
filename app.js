@@ -1082,7 +1082,12 @@ function printBoard(mode) { // 'class' | 'teacher'
     ? state.classes.map(c => ({ id: c.id, name: c.name, sub: (teacher(c.homeroomTeacherId) || {}).name || '' }))
     : orderedTeachers().map(t => {
         const { tot, qtot } = teacherTotals(t);
-        return { id: t.id, name: t.name, sub: tot + '/' + qtot + " שע'" };
+        const c = teacherCounts(t.id);
+        const q = t.quota || {};
+        return {
+          id: t.id, name: t.name, sub: tot + '/' + qtot + " שע'",
+          sub2: c.frontal + '/' + (+q.frontal || 0) + ' + ' + c.prati + '/' + (+q.prati || 0) + ' + ' + c.shehut + '/' + (+q.shehut || 0)
+        };
       });
   if (!cols.length) { toast('אין מה להדפיס עדיין'); return; }
 
@@ -1096,7 +1101,10 @@ function printBoard(mode) { // 'class' | 'teacher'
     let h = '<section class="print-page"><h2 class="sheet-title">' + title +
       (chunks.length > 1 ? ' (עמוד ' + (pi + 1) + ' מתוך ' + chunks.length + ')' : '') + '</h2>';
     h += '<table class="sheet-table"><tr><th class="w1">יום</th><th class="w1">שעה</th>' +
-      chunk.map(c => '<th>' + esc(c.name) + (c.sub ? '<br><small>' + esc(c.sub) + '</small>' : '') + '</th>').join('') + '</tr>';
+      chunk.map(c => '<th>' + esc(c.name) +
+        (c.sub ? '<br><small>' + esc(c.sub) + '</small>' : '') +
+        (c.sub2 ? '<br><small dir="ltr" title="פרונטלי + פרטני + שהות">' + esc(c.sub2) + '</small>' : '') +
+        '</th>').join('') + '</tr>';
     for (const day of DAYS) {
       const hrs = hoursFor(day);
       if (!hrs) continue;
