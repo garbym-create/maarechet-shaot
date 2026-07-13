@@ -132,6 +132,11 @@ tr.day-start td { border-top: 3px solid #d8d2f0; }
 
 td.slot { cursor: pointer; transition: background .15s; height: 44px; }
 td.slot:hover { background: var(--primary-soft); }
+td.slot.dayoff {
+  background: repeating-linear-gradient(45deg, #f3f2f8, #f3f2f8 6px, #eae7f4 6px, #eae7f4 12px);
+  cursor: not-allowed;
+}
+td.slot.dayoff:hover { background: repeating-linear-gradient(45deg, #f3f2f8, #f3f2f8 6px, #eae7f4 6px, #eae7f4 12px); }
 td.slot.conflict { outline: 2px solid var(--danger); outline-offset: -2px; background: var(--danger-soft); }
 td.slot.warn-dup { outline: 2px dashed var(--warn); outline-offset: -2px; background: var(--warn-soft); }
 td.slot.flash { animation: flash 1.6s ease; }
@@ -235,6 +240,16 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 .btn.danger { background: var(--danger-soft); border-color: #f0b9b9; color: var(--danger); }
 .btn.small { font-size: .78rem; padding: 3px 10px; }
 .btn.add { background: var(--ok-soft); border-color: #b5e8da; color: #00795f; }
+/* ימים חופשיים — כפתורי יום קטנים */
+.fd-wrap { display: inline-flex; gap: 3px; }
+.fd input { display: none; }
+.fd span {
+  display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center;
+  border-radius: 7px; background: #f0eef8; color: var(--muted);
+  font-size: .75rem; font-weight: 700; cursor: pointer; user-select: none;
+}
+.fd:has(input:checked) span { background: var(--warn); color: #fff; }
+
 .btn-del { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .55; }
 .btn-del:hover { opacity: 1; }
 .data-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -344,6 +359,23 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 /* ===== Print ===== */
 #print-sheets { display: none; }
 
+/* עיצוב הסדין — חי גם מחוץ להדפסה כדי לאפשר מדידה והתאמה לעמוד */
+.sheet-title { text-align: center; font-size: 12pt; margin: 0 0 4pt; font-family: 'Heebo', sans-serif; }
+table.sheet-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.sheet-table th, .sheet-table td {
+  border: .5pt solid #777; padding: 0.5pt 2pt; text-align: center; vertical-align: top;
+  font-size: 6.5pt; line-height: 1.15; overflow: hidden;
+}
+.sheet-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 7.5pt; }
+.sheet-table th small { font-weight: 400; font-size: 6pt; }
+.sheet-table .w1 { width: 18pt; }
+.sheet-table .dcell { font-weight: 800; font-size: 9pt; background: #f4f4f4 !important; }
+.sheet-table .hcell { font-weight: 700; color: #555; }
+.sheet-table tr.day-start th, .sheet-table tr.day-start td { border-top: 1.5pt solid #333; }
+.pcell { border-bottom: .25pt dotted #aaa; }
+.pcell:last-child { border-bottom: none; }
+.pcell i { color: #555; font-style: normal; }
+
 @media print {
   body { background: #fff; }
   .no-print, .tabs, .app-header, .conflict-bar { display: none !important; }
@@ -360,19 +392,4 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
   body.printing-board #print-sheets { display: block !important; }
   .print-page { page-break-after: always; }
   .print-page:last-child { page-break-after: auto; }
-  .sheet-title { text-align: center; font-size: 12pt; margin: 0 0 4pt; font-family: 'Heebo', sans-serif; }
-  table.sheet-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .sheet-table th, .sheet-table td {
-    border: .5pt solid #777; padding: 0.5pt 2pt; text-align: center; vertical-align: top;
-    font-size: 6.5pt; line-height: 1.15; overflow: hidden;
-  }
-  .sheet-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 7.5pt; }
-  .sheet-table th small { font-weight: 400; font-size: 6pt; }
-  .sheet-table .w1 { width: 18pt; }
-  .sheet-table .dcell { font-weight: 800; font-size: 9pt; background: #f4f4f4 !important; }
-  .sheet-table .hcell { font-weight: 700; color: #555; }
-  .sheet-table tr.day-start th, .sheet-table tr.day-start td { border-top: 1.5pt solid #333; }
-  .pcell { border-bottom: .25pt dotted #aaa; }
-  .pcell:last-child { border-bottom: none; }
-  .pcell i { color: #555; font-style: normal; }
 }

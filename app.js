@@ -125,6 +125,14 @@ function computeConflicts() {
             text: 'המורה ' + teacher(tid).name + ' משובץ/ת ב-' + ids.length + ' שיעורים שונים ביום ' + day + "' שעה " + h });
         }
       }
+      // שיבוץ ביום חופשי של מורה (למשל כשהיום החופשי סומן אחרי שהשיבוץ כבר היה קיים)
+      for (const l of slot) for (const tid of l.teacherIds) {
+        const t = teacher(tid);
+        if (t && (t.freeDays || []).includes(day)) {
+          conflicts.push({ kind: 'teacher', day, hour: h, id: tid, lessonIds: [l.id],
+            text: 'המורה ' + t.name + ' משובץ/ת ביום החופשי שלו/ה — יום ' + day + "' שעה " + h });
+        }
+      }
       // הערה: כמה שיבוצים באותה כיתה באותה שעה זה מצב לגיטימי
       // (שני מורים שכל אחד מלמד תוכן אחר, קבוצות מקבילות) — לא נחשב התנגשות
     }
@@ -218,6 +226,7 @@ function boardHtml(columns, mode) {
         const confKey = (mode === 'class' ? 'class' : 'teacher') + '|' + day + '|' + h + '|' + col.id;
         let cls = confSet.has(confKey) ? (mode === 'class' ? ' warn-dup' : ' conflict') : '';
         if (mode === 'class' && lessons.some(l => badLessons.has(l.id))) cls = ' conflict';
+        if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
           lessons.map(l => chipHtml(l, mode)).join('') + '</td>';
       }
@@ -346,6 +355,10 @@ function renderPersonal() {
     html += '<tr><td class="hour-cell">' + h + '</td>';
     for (const day of DAYS) {
       if (h > hoursFor(day)) { html += '<td style="background:#f3f2f8"></td>'; continue; }
+      if (kind === 'teacher' && (target.freeDays || []).includes(day)) {
+        html += '<td style="background:#f3f2f8;color:#9a96ad">' + (h === 1 ? 'יום חופשי' : '') + '</td>';
+        continue;
+      }
       const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
         (kind === 'class' ? l.classIds.includes(id) : l.teacherIds.includes(id)));
       html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher')).join('') + '</td>';
@@ -366,15 +379,19 @@ function renderSetup() {
 
   // מורים
   const tt = document.getElementById('teachers-table');
-  tt.innerHTML = '<tr><th>שם</th><th>תפקיד</th><th>פרונטלי</th><th>פרטני</th><th>שהות</th><th></th></tr>' +
+  tt.innerHTML = '<tr><th>שם</th><th>תפקיד</th><th>פרונטלי</th><th>פרטני</th><th>שהות</th><th>ימים חופשיים</th><th></th></tr>' +
     state.teachers.map(t => {
       const q = t.quota || {};
+      const fd = t.freeDays || [];
       return '<tr data-id="' + t.id + '">' +
         '<td><input type="text" data-f="name" value="' + esc(t.name) + '"></td>' +
         '<td><select data-f="role"><option' + (t.role === 'מחנכת' ? ' selected' : '') + '>מחנכת</option><option' + (t.role === 'מקצועי' ? ' selected' : '') + '>מקצועי</option></select></td>' +
         '<td><input type="number" min="0" data-f="frontal" value="' + (+q.frontal || 0) + '"></td>' +
         '<td><input type="number" min="0" data-f="prati" value="' + (+q.prati || 0) + '"></td>' +
         '<td><input type="number" min="0" data-f="shehut" value="' + (+q.shehut || 0) + '"></td>' +
+        '<td><span class="fd-wrap" title="סימון יום = המורה לא זמין/ה ביום זה">' +
+          DAYS.map(d => '<label class="fd"><input type="checkbox" data-fd="' + d + '"' + (fd.includes(d) ? ' checked' : '') + '><span>' + d + '</span></label>').join('') +
+        '</span></td>' +
         '<td><button class="btn-del" title="מחיקה">🗑️</button></td></tr>';
     }).join('');
   tt.querySelectorAll('tr[data-id]').forEach(tr => {
@@ -383,6 +400,10 @@ function renderSetup() {
       const f = inp.dataset.f;
       if (f === 'name' || f === 'role') t[f] = inp.value.trim() || t[f];
       else { t.quota = t.quota || {}; t.quota[f] = +inp.value || 0; }
+      save(); renderAllBoards();
+    }));
+    tr.querySelectorAll('[data-fd]').forEach(inp => inp.addEventListener('change', () => {
+      t.freeDays = [...tr.querySelectorAll('[data-fd]:checked')].map(i => i.dataset.fd);
       save(); renderAllBoards();
     }));
     tr.querySelector('.btn-del').addEventListener('click', () => {
@@ -468,7 +489,7 @@ function freeTeachersAt(day, hour) {
   const busy = new Set();
   for (const l of state.lessons) if (l.day === day && l.hour === hour) l.teacherIds.forEach(t => busy.add(t));
   return state.teachers
-    .filter(t => !busy.has(t.id))
+    .filter(t => !busy.has(t.id) && !(t.freeDays || []).includes(day))
     .map(t => ({ t, counts: teacherCounts(t.id) }))
     .filter(x => (+x.t.quota?.frontal || 0) > 0 && x.counts.frontal < +x.t.quota.frontal);
 }
@@ -547,6 +568,13 @@ function renderSuggestions() {
 
 /* ===== חלונית שיבוץ ===== */
 let modalCtx = null; // {day, hour, classId?, teacherId?, editingId?}
+
+// שמות המורים מתוך הרשימה שהיום הזה הוא יום חופשי שלהם
+function freeDayViolators(teacherIds, day) {
+  return teacherIds.map(id => teacher(id))
+    .filter(t => t && (t.freeDays || []).includes(day))
+    .map(t => t.name);
+}
 
 // שדה המקצוע הוא טקסט חופשי — תרגום שם ↔ מזהה, עם יצירה אוטומטית של מקצוע חדש
 function resolveSubjectId(createIfMissing) {
@@ -759,6 +787,8 @@ function saveLessonFromModal() {
     document.querySelector('input[name="assign-mode"]:checked').value === 'split';
   if (splitMode) {
     const sels = [...document.querySelectorAll('#split-teachers select')];
+    const blocked = freeDayViolators(sels.map(s => s.value).filter(Boolean), ctx.day);
+    if (blocked.length) { toast('⛔ יום ' + ctx.day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
     for (const s of sels) {
       state.lessons.push(Object.assign({ id: uid(), classIds: [s.dataset.cid], teacherIds: s.value ? [s.value] : [] }, common));
     }
@@ -769,6 +799,9 @@ function saveLessonFromModal() {
 
   const teacherIds = [...document.querySelectorAll('#lesson-teachers input:checked')].map(i => i.value);
   if (!teacherIds.length && !classIds.length) { toast('צריך לבחור לפחות מורה אחד או כיתה אחת'); return; }
+
+  const blocked = freeDayViolators(teacherIds, ctx.day);
+  if (blocked.length) { toast('⛔ יום ' + ctx.day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
 
   // כל מורה מלמד תוכן משלו — שיעור נפרד לכל מורה עם המקצוע שלו
   if (teacherEachMode) {
@@ -912,11 +945,30 @@ function printBoard(mode) { // 'class' | 'teacher'
     return h + '</table></section>';
   }).join('');
 
+  fitSheetsToPage();
   document.body.classList.add('printing-board');
   const cleanup = () => { document.body.classList.remove('printing-board'); window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
   window.print();
   setTimeout(cleanup, 3000); // רשת ביטחון אם afterprint לא נורה
+}
+
+// אם התוכן גבוה מדף A4 לרוחב — מכווצים את הטבלה כך שהשבוע תמיד ייכנס בעמוד אחד
+function fitSheetsToPage() {
+  const holder = document.getElementById('print-sheets');
+  holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:1062px;visibility:hidden;z-index:-1';
+  holder.querySelectorAll('.print-page').forEach(pg => {
+    const tbl = pg.querySelector('table');
+    tbl.style.transform = '';
+    const title = pg.querySelector('.sheet-title');
+    const avail = 726 - (title ? title.offsetHeight + 4 : 0); // גובה A4 לרוחב פחות שוליים וכותרת
+    if (tbl.offsetHeight > avail) {
+      const s = Math.max(0.35, avail / tbl.offsetHeight);
+      tbl.style.transform = 'scale(' + s.toFixed(3) + ')';
+      tbl.style.transformOrigin = 'top right';
+    }
+  });
+  holder.style.cssText = '';
 }
 
 /* ===== טאבים ורינדור כללי ===== */
