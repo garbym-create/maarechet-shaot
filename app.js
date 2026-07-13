@@ -704,7 +704,9 @@ function fillModal() {
           '<button class="btn small" data-copy="' + l.id + '" title="שכפול לתאים אחרים">📋</button>' +
           '<button class="btn small danger" data-del="' + l.id + '" title="מחיקת השיבוץ הזה">🗑</button></div>';
       }).join('') +
-      (ctx.editingId ? '<button class="btn small add" id="btn-new-in-slot">+ שיבוץ נוסף באותו תא</button>' : '');
+      (ctx.editingId
+        ? '<button class="btn small add" id="btn-new-in-slot">+ שיבוץ נוסף באותו תא</button>'
+        : '<div class="new-in-slot-hint">➕ הטופס שלמטה יוסיף <b>שיבוץ חדש</b> לתא הזה, בנוסף לקיימים</div>');
   } else {
     holder.innerHTML = '';
   }

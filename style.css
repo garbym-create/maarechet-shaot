@@ -343,6 +343,10 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 }
 .slot-lesson-row .grow { flex: 1; }
 .slot-lesson-row.editing { border-color: var(--primary); background: var(--primary-soft); }
+.new-in-slot-hint {
+  background: var(--ok-soft); border: 1px dashed #8ed9c3; border-radius: 10px;
+  padding: 6px 10px; font-size: .85rem; color: #00795f;
+}
 
 /* ===== Lock screen ===== */
 .lock-screen {
