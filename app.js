@@ -201,6 +201,26 @@ function chipHtml(l, mode) {
     '</span>';
 }
 
+// סדר תצוגת מורים: מחנכות לפי סדר הכיתות, אחריהן מחנכות ללא כיתה, ואז המקצועיים
+function orderedTeachers() {
+  const seen = new Set();
+  const ordered = [];
+  for (const c of state.classes) {
+    const t = teacher(c.homeroomTeacherId);
+    if (t && !seen.has(t.id)) { ordered.push(t); seen.add(t.id); }
+  }
+  for (const t of state.teachers) if (t.role === 'מחנכת' && !seen.has(t.id)) { ordered.push(t); seen.add(t.id); }
+  for (const t of state.teachers) if (!seen.has(t.id)) { ordered.push(t); seen.add(t.id); }
+  return ordered;
+}
+
+// סה"כ שובץ מול סה"כ מכסה
+function teacherTotals(t) {
+  const c = teacherCounts(t.id);
+  const q = t.quota || {};
+  return { tot: c.frontal + c.prati + c.shehut, qtot: (+q.frontal || 0) + (+q.prati || 0) + (+q.shehut || 0) };
+}
+
 function teacherSummaryHtml(t) {
   const c = teacherCounts(t.id);
   const q = t.quota || { frontal: 0, prati: 0, shehut: 0 };
@@ -280,10 +300,15 @@ function renderTeachersBoard() {
     wrap.innerHTML = '<div class="board-hint" style="padding:30px;text-align:center">עדיין אין מורים. אפשר להוסיף בלשונית ⚙️ הגדרות, או לטעון שם רשימות לדוגמה.</div>';
     return;
   }
-  const cols = state.teachers.map(t => ({
-    id: t.id,
-    headHtml: esc(t.name) + '<br><span style="font-weight:400;font-size:.75rem">' + esc(t.role || '') + '</span>' + teacherSummaryHtml(t)
-  }));
+  const cols = orderedTeachers().map(t => {
+    const { tot, qtot } = teacherTotals(t);
+    return {
+      id: t.id,
+      headHtml: esc(t.name) +
+        '<span class="quota-mini ' + statusClass(tot, qtot) + '" title="סך שעות ששובצו מול סך המכסה">שובצו ' + tot + ' / ' + qtot + '</span>' +
+        teacherSummaryHtml(t)
+    };
+  });
   wrap.innerHTML = boardHtml(cols, 'teacher');
   wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
     if (copySource) { toast('שכפול עובד בלוח הכיתות — עברי לשם, או ✔ סיום'); return; }
@@ -295,7 +320,7 @@ function renderTeachersBoard() {
 function renderQuotas() {
   // מורים
   const tq = document.getElementById('teacher-quotas');
-  tq.innerHTML = state.teachers.map(t => {
+  tq.innerHTML = orderedTeachers().map(t => {
     const c = teacherCounts(t.id);
     const q = t.quota || { frontal: 0, prati: 0, shehut: 0 };
     const bars = ['frontal', 'prati', 'shehut'].map(cat => {
@@ -340,7 +365,7 @@ function renderQuotas() {
 function renderPersonalTargets() {
   const kind = document.getElementById('personal-kind').value;
   const sel = document.getElementById('personal-target');
-  const items = kind === 'class' ? state.classes : state.teachers;
+  const items = kind === 'class' ? state.classes : orderedTeachers();
   const prev = sel.value;
   sel.innerHTML = items.map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
   if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
@@ -1055,7 +1080,10 @@ const SHEET_COLS_PER_PAGE = 6;
 function printBoard(mode) { // 'class' | 'teacher'
   const cols = mode === 'class'
     ? state.classes.map(c => ({ id: c.id, name: c.name, sub: (teacher(c.homeroomTeacherId) || {}).name || '' }))
-    : state.teachers.map(t => ({ id: t.id, name: t.name, sub: t.role || '' }));
+    : orderedTeachers().map(t => {
+        const { tot, qtot } = teacherTotals(t);
+        return { id: t.id, name: t.name, sub: tot + '/' + qtot + " שע'" };
+      });
   if (!cols.length) { toast('אין מה להדפיס עדיין'); return; }
 
   const chunks = [];
