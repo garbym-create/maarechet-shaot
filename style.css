@@ -285,6 +285,8 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 .modal-footer .spacer { flex: 1; }
 
 .teacher-pick { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.grade-btns { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.grade-btns .btn { font-size: .78rem; }
 .teacher-pick input[type="text"] { width: 100%; }
 .teacher-pick .btn { align-self: flex-start; }
 

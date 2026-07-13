@@ -766,6 +766,20 @@ function fillModal() {
     boxes.forEach(b => b.checked = !allChecked);
     updateAssignModeUI();
   };
+
+  // כפתורי שכבה — לחיצה מסמנת את כל כיתות השכבה (מופיעים רק לשכבות עם 2+ כיתות)
+  const grades = {};
+  for (const c of state.classes) { const g = classGrade(c.name); if (g) (grades[g] = grades[g] || []).push(c.id); }
+  const gradeHolder = document.getElementById('grade-buttons');
+  gradeHolder.innerHTML = Object.entries(grades).filter(([, ids]) => ids.length >= 2)
+    .map(([g, ids]) => '<button type="button" class="btn small" data-grade="' + g + '">שכבת ' + g + "'</button>").join('');
+  gradeHolder.querySelectorAll('[data-grade]').forEach(b => b.addEventListener('click', () => {
+    const ids = grades[b.dataset.grade];
+    const boxes = ids.map(id => document.querySelector('#lesson-classes input[value="' + id + '"]')).filter(Boolean);
+    const allChecked = boxes.every(cb => cb.checked);
+    boxes.forEach(cb => { cb.checked = !allChecked; });
+    updateAssignModeUI();
+  }));
   updateAssignModeUI();
   renderSuggestions();
 }
