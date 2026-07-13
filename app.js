@@ -137,6 +137,15 @@ function computeConflicts() {
       // (שני מורים שכל אחד מלמד תוכן אחר, קבוצות מקבילות) — לא נחשב התנגשות
     }
   }
+  // שיבוצים ללא מורה — תזכורת להשלמה
+  for (const l of state.lessons) {
+    if (l.classIds.length && !l.teacherIds.length && klass(l.classIds[0])) {
+      const cls = l.classIds.map(c => klass(c) ? klass(c).name : '').filter(Boolean).join('+');
+      const sub = l.subjectId && subject(l.subjectId) ? ' (' + subject(l.subjectId).name + ')' : '';
+      conflicts.push({ kind: 'missing', day: l.day, hour: l.hour, id: l.classIds[0], lessonIds: [l.id],
+        text: 'חסר מורה בכיתה ' + cls + ' — יום ' + l.day + "' שעה " + l.hour + sub });
+    }
+  }
   return conflicts;
 }
 
@@ -148,8 +157,8 @@ function renderConflictBar() {
   bar.hidden = conflicts.length === 0;
   document.getElementById('conflict-count').textContent = conflicts.length;
   list.innerHTML = conflicts.map((c, i) =>
-    '<button class="conflict-item ' + (c.kind === 'class' ? 'warn' : '') + '" data-i="' + i + '">' +
-    '<span class="tag">' + (c.kind === 'teacher' ? '⛔ מורה כפול:' : '⚠️ כיתה כפולה:') + '</span> ' + esc(c.text) + '</button>'
+    '<button class="conflict-item ' + (c.kind !== 'teacher' ? 'warn' : '') + '" data-i="' + i + '">' +
+    '<span class="tag">' + (c.kind === 'teacher' ? '⛔ התנגשות מורה:' : '❓ להשלמה:') + '</span> ' + esc(c.text) + '</button>'
   ).join('');
   list.querySelectorAll('.conflict-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -172,9 +181,10 @@ function chipHtml(l, mode) {
   const sub = l.subjectId ? subject(l.subjectId) : null;
   const color = sub ? sub.color : '#b8bdc9';
   let mainLabel = sub ? sub.name : (l.type !== 'פרונטלי' ? l.type : 'שיעור');
-  let secondLine = '';
+  let secondLine = '', missing = false;
   if (mode === 'class') {
     secondLine = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
+    if (!secondLine) { secondLine = '❓ חסר מורה'; missing = true; }
   } else {
     secondLine = l.classIds.map(c => klass(c) ? klass(c).name : '').filter(Boolean).join(' + ');
   }
@@ -186,7 +196,7 @@ function chipHtml(l, mode) {
     (l.teacherIds.length ? ' | מורים: ' + l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').join(', ') : '');
   return '<span class="chip' + shared + '" style="--sub-color:' + color + '22;--sub-border:' + color + '" title="' + esc(title) + '">' +
     '<span class="chip-subject">' + esc(mainLabel) + typeBadge + '</span>' +
-    (secondLine ? '<span class="chip-teachers">' + esc(secondLine) + '</span>' : '') +
+    (secondLine ? '<span class="chip-teachers' + (missing ? ' missing' : '') + '">' + esc(secondLine) + '</span>' : '') +
     (l.note ? '<span class="chip-note">' + esc(l.note) + '</span>' : '') +
     '</span>';
 }
@@ -226,6 +236,7 @@ function boardHtml(columns, mode) {
         const confKey = (mode === 'class' ? 'class' : 'teacher') + '|' + day + '|' + h + '|' + col.id;
         let cls = confSet.has(confKey) ? (mode === 'class' ? ' warn-dup' : ' conflict') : '';
         if (mode === 'class' && lessons.some(l => badLessons.has(l.id))) cls = ' conflict';
+        if (mode === 'class' && !cls && confSet.has('missing|' + day + '|' + h + '|' + col.id)) cls = ' warn-dup';
         if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
           lessons.map(l => chipHtml(l, mode)).join('') + '</td>';
@@ -570,21 +581,23 @@ function renderSuggestions() {
   }));
 }
 
-/* ===== מצב שכפול ===== */
-let copySource = null; // השיבוץ שמשכפלים
+/* ===== מצב שכפול (שיבוץ בודד או בלוק שלם) ===== */
+let copySource = null; // {lessons: [...]}
 
 function describeLesson(l) {
   const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
-  const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
-  return sub + (who ? ' · ' + who : '') + (l.note ? ' (' + l.note + ')' : '');
+  const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה';
+  return sub + ' · ' + who + (l.note ? ' (' + l.note + ')' : '');
 }
 
-function startCopyMode(lessonId) {
-  const l = byId(state.lessons, lessonId);
-  if (!l) return;
-  copySource = l;
+function startCopyMode(lessonIds) {
+  const lessons = lessonIds.map(id => byId(state.lessons, id)).filter(Boolean);
+  if (!lessons.length) return;
+  copySource = { lessons };
   closeModal();
-  document.getElementById('copy-bar-text').textContent = describeLesson(l);
+  document.getElementById('copy-bar-text').textContent = lessons.length === 1
+    ? describeLesson(lessons[0])
+    : 'בלוק של ' + lessons.length + ' שיבוצים: ' + lessons.map(describeLesson).join(' ┃ ');
   document.getElementById('copy-bar').hidden = false;
   document.body.classList.add('copying');
   switchTab('classes-board');
@@ -597,20 +610,24 @@ function endCopyMode() {
 }
 
 function pasteLessonTo(day, hour, classId) {
-  const src = copySource;
-  if (!src) return;
-  const blocked = freeDayViolators(src.teacherIds, day);
+  if (!copySource) return;
+  const allTeachers = [...new Set(copySource.lessons.flatMap(l => l.teacherIds))];
+  const blocked = freeDayViolators(allTeachers, day);
   if (blocked.length) { toast('⛔ יום ' + day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
-  const dup = state.lessons.some(l => l.day === day && l.hour === hour &&
-    l.classIds.includes(classId) && l.subjectId === src.subjectId &&
-    JSON.stringify([...l.teacherIds].sort()) === JSON.stringify([...src.teacherIds].sort()));
-  if (dup) { toast('כבר קיים שיבוץ זהה בתא הזה'); return; }
-  state.lessons.push({
-    id: uid(), day, hour, classIds: [classId],
-    teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note
-  });
+  let added = 0, skipped = 0;
+  for (const src of copySource.lessons) {
+    const dup = state.lessons.some(l => l.day === day && l.hour === hour &&
+      l.classIds.includes(classId) && l.subjectId === src.subjectId &&
+      JSON.stringify([...l.teacherIds].sort()) === JSON.stringify([...src.teacherIds].sort()));
+    if (dup) { skipped++; continue; }
+    state.lessons.push({
+      id: uid(), day, hour, classIds: [classId],
+      teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note
+    });
+    added++;
+  }
   save(); renderAllBoards();
-  toast('✓ הודבק — אפשר להמשיך ללחוץ על תאים, ובסיום ✔');
+  toast(added ? '✓ הודבקו ' + added + (skipped ? ' (' + skipped + ' כבר היו בתא)' : '') + ' — ובסיום ✔' : 'הכל כבר קיים בתא הזה');
 }
 
 /* ===== חלונית שיבוץ ===== */
@@ -693,7 +710,8 @@ function fillModal() {
   const existing = slotLessonsFor(ctx);
   const holder = document.getElementById('slot-lessons');
   if (existing.length) {
-    holder.innerHTML = '<label style="font-weight:700;font-size:.9rem">שיבוצים בתא זה:</label>' +
+    holder.innerHTML = '<label style="font-weight:700;font-size:.9rem">שיבוצים בתא זה: ' +
+      (existing.length >= 2 ? '<button type="button" class="btn small" id="btn-copy-block">📋 שכפול כל התא כבלוק</button>' : '') + '</label>' +
       existing.map(l => {
         const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
         const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
@@ -713,7 +731,9 @@ function fillModal() {
   holder.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
     modalCtx.editingId = b.dataset.edit; fillModal();
   }));
-  holder.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => startCopyMode(b.dataset.copy)));
+  holder.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => startCopyMode([b.dataset.copy])));
+  const blockBtn = document.getElementById('btn-copy-block');
+  if (blockBtn) blockBtn.addEventListener('click', () => startCopyMode(existing.map(l => l.id)));
   holder.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
     if (!confirm('למחוק את השיבוץ הזה?')) return;
     state.lessons = state.lessons.filter(l => l.id !== b.dataset.del);
