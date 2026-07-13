@@ -263,6 +263,22 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 }
 .fd:has(input:checked) span { background: var(--warn); color: #fff; }
 
+/* תלמידים */
+#card-students textarea {
+  width: 100%; font-family: inherit; font-size: .9rem; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0; resize: vertical;
+}
+.students-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 220px; overflow-y: auto; }
+.student-tag {
+  background: #f6f4fb; border-radius: 99px; padding: 3px 4px 3px 10px;
+  font-size: .85rem; display: inline-flex; align-items: center; gap: 2px;
+}
+#students-box { border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.chip-students { display: block; font-size: .72rem; color: #5b566e; background: rgba(255,255,255,.55); border-radius: 6px; padding: 1px 4px; margin-top: 2px; text-align: right; }
+.splits-slot { font-weight: 800; color: var(--primary); white-space: nowrap; }
+.splits-missing { color: var(--warn); font-weight: 700; background: var(--warn-soft); }
+.splits-never { background: var(--pend-soft); border-radius: 10px; padding: 6px 10px; margin: 4px 0 8px; font-size: .9rem; }
+
 .btn-del { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .55; }
 .btn-del:hover { opacity: 1; }
 .data-actions { display: flex; gap: 10px; flex-wrap: wrap; }

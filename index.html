@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 
@@ -94,6 +94,7 @@
       <select id="personal-kind">
         <option value="class">כיתה</option>
         <option value="teacher">מורה</option>
+        <option value="splits">🧑‍🎓 דוח פיצולים ותלמידים</option>
       </select>
       <select id="personal-target"></select>
       <button id="btn-print" class="btn primary">🖨️ הדפסה</button>
@@ -128,6 +129,15 @@
       <div class="setup-card" id="card-subjects">
         <h2>📚 מקצועות <button class="btn small add" id="btn-add-subject">+ הוספה</button></h2>
         <div class="table-scroll"><table class="setup-table" id="subjects-table"></table></div>
+      </div>
+
+      <div class="setup-card" id="card-students">
+        <h2>🧑‍🎓 תלמידים</h2>
+        <p class="section-hint">השמות מופיעים רק במערכות המורים ובדוח הפיצולים — לא בלוח הכיתות ולא בהדפסת הסדין.</p>
+        <div class="form-row"><label>כיתה</label><select id="students-class-select"></select></div>
+        <textarea id="students-paste" rows="4" placeholder="שם תלמיד/ה בכל שורה — אפשר להדביק רשימה שלמה"></textarea>
+        <button class="btn small add" id="btn-add-students">+ הוספת הרשימה לכיתה</button>
+        <div id="students-list" class="students-list"></div>
       </div>
 
       <div class="setup-card wide" id="card-class-quotas">
@@ -221,6 +231,20 @@
         <label>מורה ומקצוע לכל כיתה <span class="mini-hint">(ברירת מחדל: המחנכת + המקצוע שלמעלה)</span></label>
         <div id="split-teachers" class="split-list"></div>
       </div>
+      <div class="form-row" id="students-row" hidden>
+        <label>תלמידים <span class="mini-hint">(🕐 טרם שובץ בכלל · ⚠️ כבר בקבוצה אחרת בשעה זו)</span></label>
+        <div class="teacher-pick">
+          <button type="button" class="btn small" id="students-toggle">🧑‍🎓 שיוך תלמידים לקבוצה (<span id="students-count">0</span> מסומנים)</button>
+          <div id="students-box" hidden>
+            <div id="lesson-students" class="check-list"></div>
+            <div class="grade-btns">
+              <input type="text" id="new-student-name" placeholder="שם תלמיד/ה חדש/ה..." style="flex:1;min-width:140px">
+              <select id="new-student-class" hidden></select>
+              <button type="button" class="btn small add" id="btn-new-student">➕ הוספה</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="form-row">
         <label>הערה</label>
         <input type="text" id="lesson-note" placeholder="למשל: בנים / מתקדמים / מקבץ...">
@@ -239,6 +263,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

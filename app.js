@@ -25,7 +25,7 @@ let state = null;
 function emptyState() {
   return {
     settings: { schoolName: '', year: 'תשפ"ז', hoursDefault: 9, hoursFriday: 4 },
-    teachers: [], classes: [], subjects: [], lessons: []
+    teachers: [], classes: [], subjects: [], lessons: [], students: []
   };
 }
 
@@ -57,6 +57,9 @@ const byId = (arr, id) => arr.find(x => x.id === id);
 const teacher = id => byId(state.teachers, id);
 const klass = id => byId(state.classes, id);
 const subject = id => byId(state.subjects, id);
+const student = id => byId(state.students, id);
+const studentsOf = cid => state.students.filter(s => s.classId === cid);
+const lessonStudents = l => (l.studentIds || []);
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -177,7 +180,7 @@ function renderConflictBar() {
 }
 
 /* ===== רינדור לוחות ===== */
-function chipHtml(l, mode) {
+function chipHtml(l, mode, showStudents) {
   const sub = l.subjectId ? subject(l.subjectId) : null;
   const color = sub ? sub.color : '#b8bdc9';
   let mainLabel = sub ? sub.name : (l.type !== 'פרונטלי' ? l.type : 'שיעור');
@@ -198,6 +201,9 @@ function chipHtml(l, mode) {
     '<span class="chip-subject">' + esc(mainLabel) + typeBadge + '</span>' +
     (secondLine ? '<span class="chip-teachers' + (missing ? ' missing' : '') + '">' + esc(secondLine) + '</span>' : '') +
     (l.note ? '<span class="chip-note">' + esc(l.note) + '</span>' : '') +
+    (showStudents && lessonStudents(l).length
+      ? '<span class="chip-students">🧑‍🎓 ' + esc(lessonStudents(l).map(sid => student(sid) ? student(sid).name : '').filter(Boolean).join(', ')) + '</span>'
+      : '') +
     '</span>';
 }
 
@@ -365,6 +371,8 @@ function renderQuotas() {
 function renderPersonalTargets() {
   const kind = document.getElementById('personal-kind').value;
   const sel = document.getElementById('personal-target');
+  sel.hidden = kind === 'splits';
+  if (kind === 'splits') return;
   const items = kind === 'class' ? state.classes : orderedTeachers();
   const prev = sel.value;
   sel.innerHTML = items.map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
@@ -376,6 +384,7 @@ function renderPersonal() {
   const kind = document.getElementById('personal-kind').value;
   const id = document.getElementById('personal-target').value;
   const view = document.getElementById('personal-view');
+  if (kind === 'splits') { renderSplitsReport(view); return; }
   const target = kind === 'class' ? klass(id) : teacher(id);
   if (!target) { view.innerHTML = '<p class="section-hint" style="text-align:center">אין נתונים להצגה עדיין.</p>'; return; }
 
@@ -401,12 +410,66 @@ function renderPersonal() {
       }
       const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
         (kind === 'class' ? l.classIds.includes(id) : l.teacherIds.includes(id)));
-      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher')).join('') + '</td>';
+      // שמות תלמידים — רק במערכת של מורה, לא של כיתה
+      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', kind === 'teacher')).join('') + '</td>';
     }
     html += '</tr>';
   }
   html += '</table>';
   view.innerHTML = html;
+}
+
+/* ===== דוח פיצולים ותלמידים ===== */
+function renderSplitsReport(view) {
+  const assignedAnywhere = new Set(state.lessons.flatMap(lessonStudents));
+  let html = '<h2 class="pv-title">' + (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
+    'דוח פיצולים ושיוך תלמידים — ' + esc(state.settings.year || '') + '</h2>' +
+    '<p class="pv-sub">כל המשבצות שבהן הכיתה מפוצלת לקבוצות (2+ שיבוצים באותה שעה) או שיש שיוך תלמידים</p>';
+  let any = false;
+
+  for (const c of state.classes) {
+    const roster = studentsOf(c.id);
+    const never = roster.filter(s => !assignedAnywhere.has(s.id));
+    let rows = '';
+    for (const day of DAYS) {
+      for (let h = 1; h <= hoursFor(day); h++) {
+        const slot = state.lessons.filter(l => l.day === day && l.hour === h && l.classIds.includes(c.id));
+        if (slot.length < 2 && !slot.some(l => lessonStudents(l).length)) continue;
+        const slotLabel = 'יום ' + day + "' שעה " + h;
+        slot.forEach((l, i) => {
+          const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
+          const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה';
+          const names = lessonStudents(l).map(sid => student(sid) ? student(sid).name : '').filter(Boolean).join(', ');
+          rows += '<tr>' + (i === 0 ? '<td rowspan="' + (slot.length + (slotHasMissing(slot, roster) ? 1 : 0)) + '" class="splits-slot">' + slotLabel + '</td>' : '') +
+            '<td><b>' + esc(sub) + '</b>' + (l.note ? ' <span class="section-hint">(' + esc(l.note) + ')</span>' : '') + '</td>' +
+            '<td>' + esc(who) + '</td><td>' + (names ? esc(names) : '<span class="section-hint">—</span>') + '</td></tr>';
+        });
+        // מי מהכיתה לא נמצא באף קבוצה בשעה זו (מוצג רק כשמתחילים לשייך שמות במשבצת)
+        if (slotHasMissing(slot, roster)) {
+          const inSlot = new Set(slot.flatMap(lessonStudents));
+          const missing = roster.filter(s => !inSlot.has(s.id)).map(s => s.name);
+          rows += '<tr><td colspan="3" class="splits-missing">❓ לא משובצים בשעה זו: ' + esc(missing.join(', ')) + '</td></tr>';
+        }
+      }
+    }
+    if (!rows && !never.length) continue;
+    any = true;
+    html += '<div class="cq-class"><h3>כיתה ' + esc(c.name) + '</h3>';
+    if (never.length) {
+      html += '<div class="splits-never">🕐 <b>טרם שובצו לאף קבוצה:</b> ' + esc(never.map(s => s.name).join(', ')) + '</div>';
+    }
+    if (rows) {
+      html += '<table class="cq-table splits-table"><tr><th>מתי</th><th>קבוצה</th><th>מורה</th><th>תלמידים</th></tr>' + rows + '</table>';
+    }
+    html += '</div>';
+  }
+  view.innerHTML = html + (any ? '' : '<p class="section-hint" style="text-align:center">אין עדיין פיצולים או שיוכי תלמידים. מפצלים בלוח הכיתות ומשייכים תלמידים בחלונית השיבוץ (🧑‍🎓).</p>');
+}
+
+function slotHasMissing(slot, roster) {
+  if (!roster.length || !slot.some(l => lessonStudents(l).length)) return false;
+  const inSlot = new Set(slot.flatMap(lessonStudents));
+  return roster.some(s => !inSlot.has(s.id));
 }
 
 /* ===== הגדרות ===== */
@@ -477,6 +540,9 @@ function renderSetup() {
       if (!confirm('למחוק את כיתה ' + c.name + '?' + (used ? ' (יש לה ' + used + ' שיבוצים — הם יוסרו ממנה)' : ''))) return;
       state.lessons.forEach(l => l.classIds = l.classIds.filter(x => x !== c.id));
       state.lessons = state.lessons.filter(l => l.teacherIds.length || l.classIds.length);
+      const goneStudents = new Set(studentsOf(c.id).map(s => s.id));
+      state.lessons.forEach(l => { if (l.studentIds) l.studentIds = l.studentIds.filter(x => !goneStudents.has(x)); });
+      state.students = state.students.filter(s => s.classId !== c.id);
       state.classes = state.classes.filter(x => x.id !== c.id);
       save(); renderAll();
     });
@@ -504,6 +570,8 @@ function renderSetup() {
     });
   });
 
+  renderStudentsCard();
+
   // מטריצת תקן כיתתי
   const mq = document.getElementById('class-quotas-table');
   if (!state.subjects.length || !state.classes.length) {
@@ -522,6 +590,64 @@ function renderSetup() {
       save(); renderAllBoards();
     }));
   }
+}
+
+/* ===== תלמידים בחלונית השיבוץ ===== */
+// initialSet: סט מזהים לסימון התחלתי (מעריכה); בלי פרמטר — משמרים את הסימונים הנוכחיים
+function renderLessonStudents(initialSet) {
+  const ctx = modalCtx;
+  if (!ctx) return;
+  const checkedClasses = [...document.querySelectorAll('#lesson-classes input:checked')].map(i => i.value);
+  const checked = initialSet ||
+    new Set([...document.querySelectorAll('#lesson-students input:checked')].map(i => i.value));
+  const pool = state.students.filter(s => checkedClasses.includes(s.classId));
+
+  // ⚠️ כבר בקבוצה אחרת באותה שעה | 🕐 טרם שובץ לאף קבוצה
+  const inOtherGroup = new Map();
+  for (const l of state.lessons) {
+    if (l.day === ctx.day && l.hour === ctx.hour && l.id !== ctx.editingId) {
+      const label = (l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type) + (l.note ? ' · ' + l.note : '');
+      lessonStudents(l).forEach(sid => inOtherGroup.set(sid, label));
+    }
+  }
+  const assignedAnywhere = new Set(state.lessons.flatMap(lessonStudents));
+
+  document.getElementById('lesson-students').innerHTML = pool.map(s => {
+    let badge = '';
+    if (inOtherGroup.has(s.id)) badge = ' <span title="כבר בקבוצה אחרת בשעה זו: ' + esc(inOtherGroup.get(s.id)) + '">⚠️</span>';
+    else if (!assignedAnywhere.has(s.id)) badge = ' <span title="טרם שובץ/ה לאף קבוצה">🕐</span>';
+    return '<label><input type="checkbox" value="' + s.id + '"' + (checked.has(s.id) ? ' checked' : '') + '> ' + esc(s.name) + badge + '</label>';
+  }).join('') || '<span class="section-hint">אין תלמידים בכיתות שסומנו — אפשר להוסיף כאן למטה או בהגדרות</span>';
+
+  // בחירת כיתה להוספת שם חדש (רק כשמסומנות כמה כיתות)
+  const clsSel = document.getElementById('new-student-class');
+  clsSel.hidden = checkedClasses.length <= 1;
+  clsSel.innerHTML = checkedClasses.map(cid => '<option value="' + cid + '">' + esc(klass(cid) ? klass(cid).name : '') + '</option>').join('');
+  updateStudentsCount();
+}
+
+function updateStudentsCount() {
+  document.getElementById('students-count').textContent =
+    document.querySelectorAll('#lesson-students input:checked').length;
+}
+
+function addInlineStudent() {
+  const name = document.getElementById('new-student-name').value.trim();
+  if (!name) return;
+  const checkedClasses = [...document.querySelectorAll('#lesson-classes input:checked')].map(i => i.value);
+  if (!checkedClasses.length) { toast('קודם מסמנים כיתה'); return; }
+  const cid = checkedClasses.length === 1 ? checkedClasses[0] : document.getElementById('new-student-class').value;
+  let st = studentsOf(cid).find(s => s.name === name);
+  if (!st) {
+    st = { id: uid(), name, classId: cid };
+    state.students.push(st);
+    save();
+    toast('✨ נוסף/ה תלמיד/ה: ' + name + ' (' + klass(cid).name + ')');
+  }
+  const cur = new Set([...document.querySelectorAll('#lesson-students input:checked')].map(i => i.value));
+  cur.add(st.id);
+  document.getElementById('new-student-name').value = '';
+  renderLessonStudents(cur);
 }
 
 /* ===== עוזר חכם — הצעות לתא ===== */
@@ -651,9 +777,12 @@ function pasteLessonTo(day, hour, classId) {
       JSON.stringify([...l.classIds].sort()) === JSON.stringify([...targetClasses].sort()) &&
       JSON.stringify([...l.teacherIds].sort()) === JSON.stringify([...src.teacherIds].sort()));
     if (dup) { skipped++; continue; }
+    // תלמידים עוברים בהעתקה רק כשהיעד הוא אותן כיתות (שעה אחרת לאותם ילדים)
+    const sameClasses = JSON.stringify([...targetClasses].sort()) === JSON.stringify([...src.classIds].sort());
     state.lessons.push({
       id: uid(), day, hour, classIds: targetClasses,
-      teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note
+      teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note,
+      studentIds: sameClasses ? [...lessonStudents(src)] : []
     });
     added++;
   }
@@ -661,6 +790,42 @@ function pasteLessonTo(day, hour, classId) {
   toast(added
     ? '✓ הודבקו ' + added + (sharedPaste ? ' — שיעור משותף, נכנס לכל הכיתות שלו' : '') + (skipped ? ' (' + skipped + ' כבר היו)' : '')
     : 'הכל כבר קיים בתא הזה');
+}
+
+/* ===== תלמידים — כרטיס הגדרות ===== */
+function renderStudentsCard() {
+  const sel = document.getElementById('students-class-select');
+  const prev = sel.value;
+  sel.innerHTML = state.classes.map(c =>
+    '<option value="' + c.id + '">' + esc(c.name) + ' (' + studentsOf(c.id).length + ' תלמידים)</option>').join('');
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  const cid = sel.value;
+  const list = document.getElementById('students-list');
+  if (!cid) { list.innerHTML = '<span class="section-hint">קודם צריך להגדיר כיתות</span>'; return; }
+  list.innerHTML = studentsOf(cid).map(s =>
+    '<span class="student-tag">' + esc(s.name) + ' <button class="btn-del" data-sid="' + s.id + '" title="מחיקה">🗑</button></span>').join('') ||
+    '<span class="section-hint">אין תלמידים בכיתה זו עדיין — הדביקי רשימה למעלה</span>';
+  list.querySelectorAll('[data-sid]').forEach(b => b.addEventListener('click', () => {
+    const s = student(b.dataset.sid);
+    if (!confirm('למחוק את ' + s.name + '? השם יוסר גם מכל הקבוצות שהוא משויך אליהן.')) return;
+    state.lessons.forEach(l => { if (l.studentIds) l.studentIds = l.studentIds.filter(x => x !== s.id); });
+    state.students = state.students.filter(x => x.id !== s.id);
+    save(); renderStudentsCard();
+  }));
+}
+
+function addStudentsFromPaste() {
+  const cid = document.getElementById('students-class-select').value;
+  if (!cid) { toast('קודם צריך להגדיר כיתות'); return; }
+  const names = document.getElementById('students-paste').value.split('\n').map(x => x.trim()).filter(Boolean);
+  if (!names.length) { toast('הדביקי שמות — שם בכל שורה'); return; }
+  let added = 0;
+  for (const name of names) {
+    if (!studentsOf(cid).some(s => s.name === name)) { state.students.push({ id: uid(), name, classId: cid }); added++; }
+  }
+  document.getElementById('students-paste').value = '';
+  save(); renderStudentsCard();
+  toast(added ? '✓ נוספו ' + added + ' תלמידים לכיתה ' + klass(cid).name : 'כל השמות כבר קיימים בכיתה');
 }
 
 /* ===== חלונית שיבוץ ===== */
@@ -836,6 +1001,9 @@ function fillModal() {
     updateAssignModeUI();
   }));
   updateAssignModeUI();
+  document.getElementById('students-box').hidden = true; // מקטע התלמידים מתחיל מקופל
+  renderLessonStudents(new Set(editing ? lessonStudents(editing) : []));
+  if (editing && lessonStudents(editing).length) document.getElementById('students-box').hidden = false;
   renderSuggestions();
 }
 
@@ -857,6 +1025,11 @@ function updateAssignModeUI() {
   const teacherEach = showTeacherMode && document.querySelector('input[name="teacher-mode"]:checked').value === 'each';
   document.getElementById('split-subjects-row').hidden = !teacherEach;
   document.getElementById('subject-row').hidden = teacherEach;
+
+  // תלמידים — רלוונטי לשיבוץ בודד (לא במצבי פיצול; שם משייכים בעריכת כל קבוצה אחרי היצירה)
+  const showStudents = !classSplit && !teacherEach && checkedClasses.length > 0;
+  document.getElementById('students-row').hidden = !showStudents;
+  if (showStudents) renderLessonStudents();
 
   if (classSplit) {
     const holder = document.getElementById('split-teachers');
@@ -951,7 +1124,10 @@ function saveLessonFromModal() {
     toast(sels.length + ' שיבוצים נשמרו — קבוצה לכל מורה ✓');
     return;
   }
-  const data = Object.assign({ teacherIds, classIds }, common);
+  // תלמידים — רק כאלה שהכיתה שלהם עדיין מסומנת
+  const studentIds = [...document.querySelectorAll('#lesson-students input:checked')].map(i => i.value)
+    .filter(sid => { const s = student(sid); return s && classIds.includes(s.classId); });
+  const data = Object.assign({ teacherIds, classIds, studentIds }, common);
   if (ctx.editingId) {
     Object.assign(byId(state.lessons, ctx.editingId), data);
   } else {
@@ -1262,6 +1438,17 @@ function init() {
   // נתונים
   document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
   document.getElementById('btn-load-quota').addEventListener('click', loadQuotaTashpaz);
+
+  // תלמידים
+  document.getElementById('students-class-select').addEventListener('change', renderStudentsCard);
+  document.getElementById('btn-add-students').addEventListener('click', addStudentsFromPaste);
+  document.getElementById('students-toggle').addEventListener('click', () => {
+    const box = document.getElementById('students-box');
+    box.hidden = !box.hidden;
+  });
+  document.getElementById('btn-new-student').addEventListener('click', addInlineStudent);
+  document.getElementById('new-student-name').addEventListener('keydown', e => { if (e.key === 'Enter') addInlineStudent(); });
+  document.getElementById('lesson-students').addEventListener('change', updateStudentsCount);
   document.getElementById('btn-clear-lessons').addEventListener('click', () => {
     if (!confirm('למחוק את כל השיבוצים? המורים, הכיתות והמקצועות יישארו.')) return;
     state.lessons = []; save(); renderAll(); toast('כל השיבוצים נמחקו');
