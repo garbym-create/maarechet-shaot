@@ -805,15 +805,21 @@ function updateAssignModeUI() {
 
   if (classSplit) {
     const holder = document.getElementById('split-teachers');
-    const prev = {};
-    holder.querySelectorAll('select').forEach(s => { prev[s.dataset.cid] = s.value; });
+    const prev = {}, prevSub = {};
+    holder.querySelectorAll('select[data-cid]').forEach(s => { prev[s.dataset.cid] = s.value; });
+    holder.querySelectorAll('select[data-cid-sub]').forEach(s => { prevSub[s.dataset.cidSub] = s.value; });
+    const mainSubject = resolveSubjectId(false);
     holder.innerHTML = checkedClasses.map(cid => {
       const c = klass(cid);
       const def = (cid in prev) ? prev[cid] : (c.homeroomTeacherId || '');
-      return '<div class="split-line"><span>' + esc(c.name) + '</span><select data-cid="' + cid + '">' +
-        '<option value="">— ללא מורה —</option>' +
+      const defSub = (cid in prevSub) ? prevSub[cid] : (mainSubject || '');
+      return '<div class="split-line"><span>' + esc(c.name) + '</span>' +
+        '<select data-cid="' + cid + '"><option value="">— ללא מורה —</option>' +
         state.teachers.map(t => '<option value="' + t.id + '"' + (def === t.id ? ' selected' : '') + '>' +
           esc(t.name) + (c.homeroomTeacherId === t.id ? ' 🏠 (המחנכת)' : '') + '</option>').join('') +
+        '</select>' +
+        '<select data-cid-sub="' + cid + '" title="מקצוע לכיתה זו"><option value="">מקצוע: כמו למעלה</option>' +
+        state.subjects.map(sb => '<option value="' + sb.id + '"' + (defSub === sb.id ? ' selected' : '') + '>' + esc(sb.name) + '</option>').join('') +
         '</select></div>';
     }).join('');
   }
@@ -859,11 +865,13 @@ function saveLessonFromModal() {
   const splitMode = !ctx.editingId && !document.getElementById('assign-mode-row').hidden &&
     document.querySelector('input[name="assign-mode"]:checked').value === 'split';
   if (splitMode) {
-    const sels = [...document.querySelectorAll('#split-teachers select')];
+    const sels = [...document.querySelectorAll('#split-teachers select[data-cid]')];
     const blocked = freeDayViolators(sels.map(s => s.value).filter(Boolean), ctx.day);
     if (blocked.length) { toast('⛔ יום ' + ctx.day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
     for (const s of sels) {
-      state.lessons.push(Object.assign({ id: uid(), classIds: [s.dataset.cid], teacherIds: s.value ? [s.value] : [] }, common));
+      const subSel = document.querySelector('#split-teachers select[data-cid-sub="' + s.dataset.cid + '"]');
+      const subjectId = (subSel && subSel.value) ? subSel.value : common.subjectId;
+      state.lessons.push(Object.assign({ id: uid(), classIds: [s.dataset.cid], teacherIds: s.value ? [s.value] : [] }, common, { subjectId }));
     }
     save(); closeModal(); renderAllBoards();
     toast(sels.length + ' שיבוצים נשמרו — אחד לכל כיתה ✓');

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 
@@ -182,7 +182,7 @@
         <label>אופן השיבוץ</label>
         <div class="radio-group">
           <label class="radio-line"><input type="radio" name="assign-mode" value="together" checked> 🔗 שיעור משותף — אותם מורים מלמדים את כל הכיתות יחד (מקבץ)</label>
-          <label class="radio-line"><input type="radio" name="assign-mode" value="split"> 🏠 שיבוץ נפרד לכל כיתה — אותו מקצוע, מורה משלה לכל כיתה</label>
+          <label class="radio-line"><input type="radio" name="assign-mode" value="split"> 🏠 שיבוץ נפרד לכל כיתה — מורה משלה, ואפשר גם מקצוע שונה לכל כיתה</label>
         </div>
       </div>
       <div class="form-row" id="teachers-row">
@@ -218,7 +218,7 @@
         </datalist>
       </div>
       <div class="form-row" id="split-teachers-row" hidden>
-        <label>מורה לכל כיתה <span class="mini-hint">(ברירת מחדל: המחנכת)</span></label>
+        <label>מורה ומקצוע לכל כיתה <span class="mini-hint">(ברירת מחדל: המחנכת + המקצוע שלמעלה)</span></label>
         <div id="split-teachers" class="split-list"></div>
       </div>
       <div class="form-row">
@@ -239,6 +239,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
