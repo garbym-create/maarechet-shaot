@@ -378,22 +378,24 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 /* ===== Print ===== */
 #print-sheets { display: none; }
 
-/* עיצוב הסדין — חי גם מחוץ להדפסה כדי לאפשר מדידה והתאמה לעמוד */
+/* עיצוב הסדין — חי גם מחוץ להדפסה כדי לאפשר מדידה והתאמה לעמוד.
+   --fs הוא מקדם כיווץ אמיתי (משנה את הפונט, לא transform) כך ששבירת העמודים נכונה */
 .sheet-title { text-align: center; font-size: 12pt; margin: 0 0 4pt; font-family: 'Heebo', sans-serif; }
-table.sheet-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layout: fixed; }
 .sheet-table th, .sheet-table td {
   border: .5pt solid #777; padding: 0.5pt 2pt; text-align: center; vertical-align: top;
-  font-size: 6.5pt; line-height: 1.15; overflow: hidden;
+  font-size: calc(6.5pt * var(--fs)); line-height: 1.15; overflow: hidden;
 }
-.sheet-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 7.5pt; }
-.sheet-table th small { font-weight: 400; font-size: 6pt; }
+.sheet-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: calc(7.5pt * var(--fs)); }
+.sheet-table th small { font-weight: 400; font-size: calc(6pt * var(--fs)); }
 .sheet-table .w1 { width: 18pt; }
-.sheet-table .dcell { font-weight: 800; font-size: 9pt; background: #f4f4f4 !important; }
+.sheet-table .dcell { font-weight: 800; font-size: calc(9pt * var(--fs)); background: #f4f4f4 !important; }
 .sheet-table .hcell { font-weight: 700; color: #555; }
 .sheet-table tr.day-start th, .sheet-table tr.day-start td { border-top: 1.5pt solid #333; }
 .pcell { border-bottom: .25pt dotted #aaa; }
 .pcell:last-child { border-bottom: none; }
 .pcell i { color: #555; font-style: normal; }
+.pc-missing { font-weight: 800; }
 
 @media print {
   body { background: #fff; }
@@ -405,10 +407,11 @@ table.sheet-table { width: 100%; border-collapse: collapse; table-layout: fixed;
   table.pv-table th, table.pv-table td { border-color: #999; }
   @page { size: A4 landscape; margin: 8mm; }
 
-  /* הדפסת סדין מלא — כל השבוע בעמוד, 6 עמודות לעמוד */
+  /* הדפסת סדין מלא — כל השבוע בעמוד אחד לאורך, 6 עמודות לעמוד */
   body.printing-board #tab-personal { display: none !important; }
   body.printing-board main { display: none !important; }
   body.printing-board #print-sheets { display: block !important; }
-  .print-page { page-break-after: always; }
+  .print-page { page: sheet; page-break-after: always; }
   .print-page:last-child { page-break-after: auto; }
+  @page sheet { size: A4 portrait; margin: 8mm; }
 }

@@ -1081,10 +1081,15 @@ function printBoard(mode) { // 'class' | 'teacher'
             (mode === 'class' ? l.classIds.includes(c.id) : l.teacherIds.includes(c.id)));
           h += '<td>' + ls.map(l => {
             const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : (l.type !== 'פרונטלי' ? l.type : '');
-            const who = mode === 'class'
-              ? l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ')
-              : l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
-            return '<div class="pcell"><b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') +
+            let whoHtml = '';
+            if (mode === 'class') {
+              const names = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
+              whoHtml = names ? ' ' + esc(names) : ' <span class="pc-missing">❓ חסר מורה</span>';
+            } else {
+              const cn = l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
+              whoHtml = cn ? ' ' + esc(cn) : '';
+            }
+            return '<div class="pcell"><b>' + esc(sub) + '</b>' + whoHtml +
               (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + '</div>';
           }).join('') + '</td>';
         }
@@ -1102,19 +1107,19 @@ function printBoard(mode) { // 'class' | 'teacher'
   setTimeout(cleanup, 3000); // רשת ביטחון אם afterprint לא נורה
 }
 
-// אם התוכן גבוה מדף A4 לרוחב — מכווצים את הטבלה כך שהשבוע תמיד ייכנס בעמוד אחד
+// התאמה לעמוד A4 לאורך: מקטינים את הפונט בפועל (לא transform) עד שהשבוע כולו נכנס.
+// כיווץ אמיתי משנה את גובה הפריסה — ולכן שבירת העמודים תמיד נכונה והשבוע לא נחתך.
 function fitSheetsToPage() {
   const holder = document.getElementById('print-sheets');
-  holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:1062px;visibility:hidden;z-index:-1';
+  // רוחב הדפסה של A4 לאורך: ‎210-16מ"מ ≈ 733px
+  holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:733px;visibility:hidden;z-index:-1';
   holder.querySelectorAll('.print-page').forEach(pg => {
     const tbl = pg.querySelector('table');
-    tbl.style.transform = '';
     const title = pg.querySelector('.sheet-title');
-    const avail = 726 - (title ? title.offsetHeight + 4 : 0); // גובה A4 לרוחב פחות שוליים וכותרת
-    if (tbl.offsetHeight > avail) {
-      const s = Math.max(0.35, avail / tbl.offsetHeight);
-      tbl.style.transform = 'scale(' + s.toFixed(3) + ')';
-      tbl.style.transformOrigin = 'top right';
+    const avail = 1026 - (title ? title.offsetHeight + 4 : 0); // גובה A4 לאורך פחות שוליים
+    for (const f of [1, 0.92, 0.85, 0.78, 0.7, 0.62, 0.55, 0.48, 0.42]) {
+      tbl.style.setProperty('--fs', f);
+      if (tbl.offsetHeight <= avail) break;
     }
   });
   holder.style.cssText = '';
