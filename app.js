@@ -257,8 +257,10 @@ function renderClassesBoard() {
     return { id: c.id, headHtml: esc(c.name) + (hm ? '<br><span style="font-weight:400;font-size:.78rem">' + esc(hm.name) + '</span>' : '') + mini };
   });
   wrap.innerHTML = boardHtml(cols, 'class');
-  wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () =>
-    openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, classId: td.dataset.col })));
+  wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
+    if (copySource) { pasteLessonTo(td.dataset.day, +td.dataset.hour, td.dataset.col); return; }
+    openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, classId: td.dataset.col });
+  }));
 }
 
 function renderTeachersBoard() {
@@ -272,8 +274,10 @@ function renderTeachersBoard() {
     headHtml: esc(t.name) + '<br><span style="font-weight:400;font-size:.75rem">' + esc(t.role || '') + '</span>' + teacherSummaryHtml(t)
   }));
   wrap.innerHTML = boardHtml(cols, 'teacher');
-  wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () =>
-    openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, teacherId: td.dataset.col })));
+  wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
+    if (copySource) { toast('שכפול עובד בלוח הכיתות — עברי לשם, או ✔ סיום'); return; }
+    openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, teacherId: td.dataset.col });
+  }));
 }
 
 /* ===== מכסות ===== */
@@ -566,6 +570,49 @@ function renderSuggestions() {
   }));
 }
 
+/* ===== מצב שכפול ===== */
+let copySource = null; // השיבוץ שמשכפלים
+
+function describeLesson(l) {
+  const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
+  const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
+  return sub + (who ? ' · ' + who : '') + (l.note ? ' (' + l.note + ')' : '');
+}
+
+function startCopyMode(lessonId) {
+  const l = byId(state.lessons, lessonId);
+  if (!l) return;
+  copySource = l;
+  closeModal();
+  document.getElementById('copy-bar-text').textContent = describeLesson(l);
+  document.getElementById('copy-bar').hidden = false;
+  document.body.classList.add('copying');
+  switchTab('classes-board');
+}
+
+function endCopyMode() {
+  copySource = null;
+  document.getElementById('copy-bar').hidden = true;
+  document.body.classList.remove('copying');
+}
+
+function pasteLessonTo(day, hour, classId) {
+  const src = copySource;
+  if (!src) return;
+  const blocked = freeDayViolators(src.teacherIds, day);
+  if (blocked.length) { toast('⛔ יום ' + day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
+  const dup = state.lessons.some(l => l.day === day && l.hour === hour &&
+    l.classIds.includes(classId) && l.subjectId === src.subjectId &&
+    JSON.stringify([...l.teacherIds].sort()) === JSON.stringify([...src.teacherIds].sort()));
+  if (dup) { toast('כבר קיים שיבוץ זהה בתא הזה'); return; }
+  state.lessons.push({
+    id: uid(), day, hour, classIds: [classId],
+    teacherIds: [...src.teacherIds], subjectId: src.subjectId, type: src.type, note: src.note
+  });
+  save(); renderAllBoards();
+  toast('✓ הודבק — אפשר להמשיך ללחוץ על תאים, ובסיום ✔');
+}
+
 /* ===== חלונית שיבוץ ===== */
 let modalCtx = null; // {day, hour, classId?, teacherId?, editingId?}
 
@@ -654,6 +701,7 @@ function fillModal() {
           '<span class="grow">' + esc(sub) + (who ? ' · ' + esc(who) : '') + (l.note ? ' <small>(' + esc(l.note) + ')</small>' : '') + '</span>' +
           (l.id === ctx.editingId ? '<span style="font-size:.75rem;color:var(--primary);font-weight:700">בעריכה</span>'
             : '<button class="btn small" data-edit="' + l.id + '">✏️ עריכה</button>') +
+          '<button class="btn small" data-copy="' + l.id + '" title="שכפול לתאים אחרים">📋</button>' +
           '<button class="btn small danger" data-del="' + l.id + '" title="מחיקת השיבוץ הזה">🗑</button></div>';
       }).join('') +
       (ctx.editingId ? '<button class="btn small add" id="btn-new-in-slot">+ שיבוץ נוסף באותו תא</button>' : '');
@@ -663,6 +711,7 @@ function fillModal() {
   holder.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
     modalCtx.editingId = b.dataset.edit; fillModal();
   }));
+  holder.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => startCopyMode(b.dataset.copy)));
   holder.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
     if (!confirm('למחוק את השיבוץ הזה?')) return;
     state.lessons = state.lessons.filter(l => l.id !== b.dataset.del);
@@ -1157,7 +1206,8 @@ function init() {
     save(); closeModal(); renderAllBoards();
     toast('השיבוץ נמחק');
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  document.getElementById('copy-bar-end').addEventListener('click', endCopyMode);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); endCopyMode(); } });
 }
 
 init();

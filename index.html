@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -45,6 +45,11 @@
   <button class="tab" data-tab="personal">🖨️ מערכת אישית</button>
   <button class="tab" data-tab="setup">⚙️ הגדרות</button>
 </nav>
+
+<div id="copy-bar" class="copy-bar no-print" hidden>
+  <span>📋 <b>מצב שכפול פעיל:</b> <span id="copy-bar-text"></span> — לחצי על תאים בלוח הכיתות כדי להדביק עותק</span>
+  <button class="btn small" id="copy-bar-end">✔ סיום</button>
+</div>
 
 <div id="conflict-bar" class="conflict-bar no-print" hidden>
   <button id="conflict-toggle" class="conflict-toggle">⚠️ <span id="conflict-count"></span> התנגשויות — לחצי לפירוט</button>
@@ -231,6 +236,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
