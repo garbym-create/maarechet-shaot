@@ -6,10 +6,10 @@ const UNLOCK_KEY = 'maarechet-shaot-unlocked';
 // טביעת אצבע (SHA-256) של הסיסמה — הסיסמה עצמה לא מופיעה בקוד
 const PASS_HASH = '70dfd884ba653f643467d4121e9213811358049a242df0b9b715e7d8ea4e3fa6';
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
-const LESSON_TYPES = ['פרונטלי', 'פרטני', 'שהות', 'תפקיד', 'שחרית', 'ייעוץ', 'אחר'];
+const LESSON_TYPES = ['פרונטלי', 'מגמה', 'פרטני', 'שהות', 'תפקיד', 'שחרית', 'ייעוץ', 'אחר'];
 // מיפוי סוג שעה -> קטגוריית מכסה
 const TYPE_TO_CAT = {
-  'פרונטלי': 'frontal', 'שחרית': 'frontal', 'אחר': 'frontal',
+  'פרונטלי': 'frontal', 'מגמה': 'frontal', 'שחרית': 'frontal', 'אחר': 'frontal',
   'פרטני': 'prati', 'תפקיד': 'prati', 'ייעוץ': 'prati',
   'שהות': 'shehut'
 };
