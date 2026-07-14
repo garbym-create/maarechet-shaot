@@ -265,7 +265,7 @@ function boardHtml(columns, mode) {
         if (mode === 'class' && !cls && confSet.has('missing|' + day + '|' + h + '|' + col.id)) cls = ' warn-dup';
         if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
-          lessons.map(l => chipHtml(l, mode)).join('') + '</td>';
+          lessons.map(l => chipHtml(l, mode, mode === 'class')).join('') + '</td>';
       }
       html += '</tr>';
     }
