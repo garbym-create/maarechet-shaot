@@ -133,6 +133,10 @@ table.board .col-day { inset-inline-start: 0; }
 table.board .col-hour { inset-inline-start: 48px; }
 table.board thead .col-day, table.board thead .col-hour { z-index: 30; background: var(--primary-soft); }
 td.col-day { background: #faf9ff; color: var(--primary); font-size: 1.1rem; }
+.col-day .day-label {
+  position: sticky; top: calc(var(--head-h, 60px) + 6px);
+  display: block; padding: 2px 0;
+}
 td.col-hour { color: var(--muted); }
 tr.day-start td { border-top: 3px solid #d8d2f0; }
 

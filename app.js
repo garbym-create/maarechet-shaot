@@ -254,7 +254,7 @@ function boardHtml(columns, mode) {
     if (!hrs) continue;
     for (let h = 1; h <= hrs; h++) {
       html += '<tr' + (h === 1 ? ' class="day-start"' : '') + '>';
-      if (h === 1) html += '<td class="col-day" rowspan="' + hrs + '">' + day + "'</td>";
+      if (h === 1) html += '<td class="col-day" rowspan="' + hrs + '"><span class="day-label">' + day + "'</span></td>";
       html += '<td class="col-hour">' + h + '</td>';
       for (const col of columns) {
         const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
@@ -272,6 +272,12 @@ function boardHtml(columns, mode) {
   }
   html += '</tbody></table>';
   return html;
+}
+
+// אות היום נצמדת בגלילה — מוודאים שהיא נעצרת בדיוק מתחת לכותרת הדביקה
+function setDayLabelOffset(wrap) {
+  const thead = wrap.querySelector('thead');
+  if (thead) wrap.style.setProperty('--head-h', thead.offsetHeight + 'px');
 }
 
 function renderClassesBoard() {
@@ -294,6 +300,7 @@ function renderClassesBoard() {
     return { id: c.id, headHtml: esc(c.name) + (hm ? '<br><span style="font-weight:400;font-size:.78rem">' + esc(hm.name) + '</span>' : '') + mini };
   });
   wrap.innerHTML = boardHtml(cols, 'class');
+  setDayLabelOffset(wrap);
   wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
     if (copySource) { pasteLessonTo(td.dataset.day, +td.dataset.hour, td.dataset.col); return; }
     openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, classId: td.dataset.col });
@@ -316,6 +323,7 @@ function renderTeachersBoard() {
     };
   });
   wrap.innerHTML = boardHtml(cols, 'teacher');
+  setDayLabelOffset(wrap);
   wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
     if (copySource) { toast('שכפול עובד בלוח הכיתות — עברי לשם, או ✔ סיום'); return; }
     openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, teacherId: td.dataset.col });
