@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 
@@ -97,7 +97,17 @@
         <option value="splits">🧑‍🎓 דוח פיצולים ותלמידים</option>
       </select>
       <select id="personal-target"></select>
-      <button id="btn-print" class="btn primary">🖨️ הדפסה</button>
+      <button id="btn-print" class="btn primary">🖨️ הדפסת הנבחר/ת</button>
+      <button id="btn-print-multi" class="btn">🖨️ הדפסת מערכות... (בחירה)</button>
+    </div>
+    <div id="print-picker" class="print-picker no-print" hidden>
+      <div class="grade-btns">
+        <b>אילו מערכות להדפיס? (עמוד לכל אחת)</b>
+        <button class="btn small" id="picker-all" type="button">סמני הכל</button>
+        <button class="btn small" id="picker-none" type="button">נקי</button>
+      </div>
+      <div id="picker-list" class="check-list"></div>
+      <button class="btn primary" id="picker-print" type="button">🖨️ הדפסה (<span id="picker-count">0</span> מערכות)</button>
     </div>
     <div id="personal-view" class="personal-view print-area"></div>
   </section>
@@ -267,6 +277,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>

@@ -400,6 +400,8 @@ function renderPersonalTargets() {
   const kind = document.getElementById('personal-kind').value;
   const sel = document.getElementById('personal-target');
   sel.hidden = kind === 'splits';
+  document.getElementById('btn-print-multi').hidden = kind === 'splits';
+  document.getElementById('print-picker').hidden = true; // נסגר בהחלפת סוג
   if (kind === 'splits') return;
   const items = kind === 'class' ? state.classes : orderedTeachers();
   const prev = sel.value;
@@ -1404,22 +1406,105 @@ function printBoard(mode) { // 'class' | 'teacher'
   setTimeout(cleanup, 3000); // רשת ביטחון אם afterprint לא נורה
 }
 
-// התאמה לעמוד A4 לאורך: מקטינים את הפונט בפועל (לא transform) עד שהשבוע כולו נכנס.
-// כיווץ אמיתי משנה את גובה הפריסה — ולכן שבירת העמודים תמיד נכונה והשבוע לא נחתך.
+// התאמה לעמוד: מקטינים את הפונט בפועל (לא transform) עד שהתוכן נכנס בעמוד אחד.
+// כיווץ אמיתי משנה את גובה הפריסה — ולכן שבירת העמודים תמיד נכונה והתוכן לא נחתך.
+// עמוד עם class‏ landscape נמדד לרוחב; אחרת לאורך (הסדין).
 function fitSheetsToPage() {
   const holder = document.getElementById('print-sheets');
-  // רוחב הדפסה של A4 לאורך: ‎210-16מ"מ ≈ 733px
-  holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:733px;visibility:hidden;z-index:-1';
+  const first = holder.querySelector('.print-page');
+  if (!first) return;
+  const landscape = first.classList.contains('landscape');
+  const width = landscape ? 1062 : 733;   // רוחב הדפסה: ‎297-16 / ‎210-16 מ"מ בפיקסלים
+  const availBase = landscape ? 726 : 1026; // גובה הדפסה בהתאם
+  holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:' + width + 'px;visibility:hidden;z-index:-1';
   holder.querySelectorAll('.print-page').forEach(pg => {
     const tbl = pg.querySelector('table');
     const title = pg.querySelector('.sheet-title');
-    const avail = 1026 - (title ? title.offsetHeight + 4 : 0); // גובה A4 לאורך פחות שוליים
+    const avail = availBase - (title ? title.offsetHeight + 4 : 0);
     for (const f of [1, 0.92, 0.85, 0.78, 0.7, 0.62, 0.55, 0.48, 0.42]) {
       tbl.style.setProperty('--fs', f);
       if (tbl.offsetHeight <= avail) break;
     }
   });
   holder.style.cssText = '';
+}
+
+/* ===== הדפסת מערכות אישיות — עמוד אחד מובטח לכל מערכת ===== */
+function personalCellHtml(l, kind, targetId) {
+  const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : (l.type !== 'פרונטלי' ? l.type : '');
+  let who = '';
+  if (kind === 'class') {
+    const names = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
+    who = names ? ' ' + esc(names) : ' <span class="pc-missing">❓ חסר מורה</span>';
+  } else {
+    const cnm = l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
+    who = cnm ? ' ' + esc(cnm) : '';
+  }
+  const all = lessonStudents(l).map(s => student(s)).filter(Boolean);
+  let stLine = '';
+  if (all.length) {
+    let shown = all, others = 0;
+    if (kind === 'class') { shown = all.filter(s => s.classId === targetId); others = all.length - shown.length; }
+    const names = shown.map(s => s.name).join(', ');
+    if (names || others) stLine = '<div class="pc-students">🧑‍🎓 ' + esc(names) + (others ? (names ? ' ' : '') + '(+' + others + ')' : '') + '</div>';
+  }
+  return '<div class="pcell"><b>' + esc(sub) + '</b>' + who + (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + stLine + '</div>';
+}
+
+function personalPageHtml(kind, target) {
+  let subTitle = '';
+  if (kind === 'class') {
+    const hm = teacher(target.homeroomTeacherId);
+    subTitle = hm ? 'מחנכת: ' + hm.name : '';
+  } else {
+    const c = teacherCounts(target.id); const q = target.quota || {};
+    subTitle = 'פרונטלי ' + c.frontal + '/' + (+q.frontal || 0) + ' · פרטני ' + c.prati + '/' + (+q.prati || 0) + ' · שהות ' + c.shehut + '/' + (+q.shehut || 0);
+  }
+  let h = '<section class="print-page landscape"><h2 class="sheet-title">' +
+    (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
+    'מערכת שעות ' + esc(state.settings.year || '') + ' — ' + esc(target.name) +
+    (subTitle ? ' <small>(' + esc(subTitle) + ')</small>' : '') + '</h2>';
+  h += '<table class="sheet-table"><tr><th class="w1">שעה</th>' + DAYS.map(d => '<th>' + d + "'</th>").join('') + '</tr>';
+  for (let hr = 1; hr <= maxHours(); hr++) {
+    h += '<tr><td class="hcell">' + hr + '</td>';
+    for (const day of DAYS) {
+      if (hr > hoursFor(day)) { h += '<td class="offcell"></td>'; continue; }
+      if (kind === 'teacher' && (target.freeDays || []).includes(day)) {
+        h += '<td class="offcell">' + (hr === 1 ? 'יום חופשי' : '') + '</td>'; continue;
+      }
+      const ls = state.lessons.filter(l => l.day === day && l.hour === hr &&
+        (kind === 'class' ? l.classIds.includes(target.id) : l.teacherIds.includes(target.id)));
+      h += '<td>' + ls.map(l => personalCellHtml(l, kind, target.id)).join('') + '</td>';
+    }
+    h += '</tr>';
+  }
+  return h + '</table></section>';
+}
+
+function printPersonal(kind, targetIds) {
+  const pool = kind === 'class' ? state.classes : orderedTeachers();
+  const targets = pool.filter(x => targetIds.includes(x.id));
+  if (!targets.length) { toast('לא נבחרו מערכות להדפסה'); return; }
+  document.getElementById('print-sheets').innerHTML = targets.map(t => personalPageHtml(kind, t)).join('');
+  fitSheetsToPage();
+  document.body.classList.add('printing-board');
+  const cleanup = () => { document.body.classList.remove('printing-board'); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 3000);
+}
+
+/* ===== פאנל בחירת מערכות להדפסה ===== */
+function renderPrintPicker() {
+  const kind = document.getElementById('personal-kind').value;
+  const pool = kind === 'class' ? state.classes : orderedTeachers();
+  document.getElementById('picker-list').innerHTML = pool.map(x =>
+    '<label><input type="checkbox" value="' + x.id + '" checked> ' + esc(x.name) + '</label>').join('');
+  updatePickerCount();
+}
+function updatePickerCount() {
+  document.getElementById('picker-count').textContent =
+    document.querySelectorAll('#picker-list input:checked').length;
 }
 
 /* ===== טאבים ורינדור כללי ===== */
@@ -1556,7 +1641,27 @@ function init() {
   // מערכת אישית
   document.getElementById('personal-kind').addEventListener('change', renderPersonal);
   document.getElementById('personal-target').addEventListener('change', renderPersonal);
-  document.getElementById('btn-print').addEventListener('click', () => window.print());
+  document.getElementById('btn-print').addEventListener('click', () => {
+    const kind = document.getElementById('personal-kind').value;
+    if (kind === 'splits') { window.print(); return; } // דוח פיצולים — הדפסה רגילה (רב-עמודים)
+    printPersonal(kind, [document.getElementById('personal-target').value]);
+  });
+  document.getElementById('btn-print-multi').addEventListener('click', () => {
+    const picker = document.getElementById('print-picker');
+    picker.hidden = !picker.hidden;
+    if (!picker.hidden) renderPrintPicker();
+  });
+  document.getElementById('picker-all').addEventListener('click', () => {
+    document.querySelectorAll('#picker-list input').forEach(cb => cb.checked = true); updatePickerCount();
+  });
+  document.getElementById('picker-none').addEventListener('click', () => {
+    document.querySelectorAll('#picker-list input').forEach(cb => cb.checked = false); updatePickerCount();
+  });
+  document.getElementById('picker-list').addEventListener('change', updatePickerCount);
+  document.getElementById('picker-print').addEventListener('click', () => {
+    const ids = [...document.querySelectorAll('#picker-list input:checked')].map(i => i.value);
+    printPersonal(document.getElementById('personal-kind').value, ids);
+  });
   document.getElementById('btn-print-classes').addEventListener('click', () => printBoard('class'));
   document.getElementById('btn-print-teachers').addEventListener('click', () => printBoard('teacher'));
 

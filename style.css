@@ -420,6 +420,16 @@ table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layou
 .pcell:last-child { border-bottom: none; }
 .pcell i { color: #555; font-style: normal; }
 .pc-missing { font-weight: 800; }
+.sheet-title small { font-weight: 400; font-size: 9pt; color: #555; }
+.sheet-table .offcell { background: #efefef !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #999; }
+.pc-students { color: #444; }
+
+/* פאנל בחירת מערכות להדפסה */
+.print-picker {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 16px; margin-bottom: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
 
 @media print {
   body { background: #fff; }
@@ -438,4 +448,6 @@ table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layou
   .print-page { page: sheet; page-break-after: always; }
   .print-page:last-child { page-break-after: auto; }
   @page sheet { size: A4 portrait; margin: 8mm; }
+  .print-page.landscape { page: sheetland; }
+  @page sheetland { size: A4 landscape; margin: 8mm; }
 }
