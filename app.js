@@ -180,7 +180,8 @@ function renderConflictBar() {
 }
 
 /* ===== רינדור לוחות ===== */
-function chipHtml(l, mode, showStudents) {
+// filterClassId: בתצוגה של כיתה מסוימת מציגים רק את תלמידיה, עם מונה לשאר (קבוצות מעורבבות)
+function chipHtml(l, mode, showStudents, filterClassId) {
   const sub = l.subjectId ? subject(l.subjectId) : null;
   const color = sub ? sub.color : '#b8bdc9';
   let mainLabel = sub ? sub.name : (l.type !== 'פרונטלי' ? l.type : 'שיעור');
@@ -201,10 +202,21 @@ function chipHtml(l, mode, showStudents) {
     '<span class="chip-subject">' + esc(mainLabel) + typeBadge + '</span>' +
     (secondLine ? '<span class="chip-teachers' + (missing ? ' missing' : '') + '">' + esc(secondLine) + '</span>' : '') +
     (l.note ? '<span class="chip-note">' + esc(l.note) + '</span>' : '') +
-    (showStudents && lessonStudents(l).length
-      ? '<span class="chip-students">🧑‍🎓 ' + esc(lessonStudents(l).map(sid => student(sid) ? student(sid).name : '').filter(Boolean).join(', ')) + '</span>'
-      : '') +
+    (showStudents && lessonStudents(l).length ? studentsLineHtml(l, filterClassId) : '') +
     '</span>';
+}
+
+function studentsLineHtml(l, filterClassId) {
+  const all = lessonStudents(l).map(sid => student(sid)).filter(Boolean);
+  let shown = all, others = 0;
+  if (filterClassId) {
+    shown = all.filter(s => s.classId === filterClassId);
+    others = all.length - shown.length;
+  }
+  if (!shown.length && !others) return '';
+  const names = shown.map(s => s.name).join(', ');
+  return '<span class="chip-students">🧑‍🎓 ' + esc(names) +
+    (others ? (names ? ' ' : '') + '(+' + others + ' מכיתות אחרות)' : '') + '</span>';
 }
 
 // סדר תצוגת מורים: מחנכות לפי סדר הכיתות, אחריהן מחנכות ללא כיתה, ואז המקצועיים
@@ -265,7 +277,7 @@ function boardHtml(columns, mode) {
         if (mode === 'class' && !cls && confSet.has('missing|' + day + '|' + h + '|' + col.id)) cls = ' warn-dup';
         if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
-          lessons.map(l => chipHtml(l, mode, mode === 'class')).join('') + '</td>';
+          lessons.map(l => chipHtml(l, mode, mode === 'class', mode === 'class' ? col.id : undefined)).join('') + '</td>';
       }
       html += '</tr>';
     }
@@ -418,7 +430,7 @@ function renderPersonal() {
       }
       const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
         (kind === 'class' ? l.classIds.includes(id) : l.teacherIds.includes(id)));
-      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', true)).join('') + '</td>';
+      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', true, kind === 'class' ? id : undefined)).join('') + '</td>';
     }
     html += '</tr>';
   }
@@ -446,7 +458,11 @@ function renderSplitsReport(view) {
         slot.forEach((l, i) => {
           const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
           const who = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה';
-          const names = lessonStudents(l).map(sid => student(sid) ? student(sid).name : '').filter(Boolean).join(', ');
+          // בסקציה של כיתה מציגים רק את תלמידיה; לשאר — מונה (קבוצות מעורבבות חוצות-כיתות)
+          const allSt = lessonStudents(l).map(sid => student(sid)).filter(Boolean);
+          const mine = allSt.filter(s => s.classId === c.id);
+          const others = allSt.length - mine.length;
+          const names = mine.map(s => s.name).join(', ') + (others ? (mine.length ? ' ' : '') + '(+' + others + ' מכיתות אחרות)' : '');
           rows += '<tr>' + (i === 0 ? '<td rowspan="' + (slot.length + (slotHasMissing(slot, roster) ? 1 : 0)) + '" class="splits-slot">' + slotLabel + '</td>' : '') +
             '<td><b>' + esc(sub) + '</b>' + (l.note ? ' <span class="section-hint">(' + esc(l.note) + ')</span>' : '') + '</td>' +
             '<td>' + esc(who) + '</td><td>' + (names ? esc(names) : '<span class="section-hint">—</span>') + '</td></tr>';
