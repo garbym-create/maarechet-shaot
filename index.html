@@ -237,6 +237,10 @@
           <button type="button" class="btn small" id="students-toggle">🧑‍🎓 שיוך תלמידים לקבוצה (<span id="students-count">0</span> מסומנים)</button>
           <div id="students-box" hidden>
             <div id="lesson-students" class="check-list"></div>
+            <label class="sync-line" id="students-sync-row" hidden>
+              <input type="checkbox" id="students-sync" checked>
+              🔁 לעדכן את השמות גם ב-<span id="students-sync-count"></span> המשבצות הנוספות של הקבוצה הזו (אותה מורה, מקצוע וכיתה)
+            </label>
             <div class="grade-btns">
               <input type="text" id="new-student-name" placeholder="שם תלמיד/ה חדש/ה..." style="flex:1;min-width:140px">
               <select id="new-student-class" hidden></select>
@@ -263,6 +267,6 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

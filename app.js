@@ -593,6 +593,18 @@ function renderSetup() {
 }
 
 /* ===== תלמידים בחלונית השיבוץ ===== */
+// משבצות "אחיות" — אותה קבוצה: אותם מורים + אותו מקצוע + אותן כיתות
+function siblingLessons(ref, excludeId) {
+  const t = JSON.stringify([...ref.teacherIds].sort());
+  const c = JSON.stringify([...ref.classIds].sort());
+  return state.lessons.filter(l => l.id !== excludeId &&
+    l.subjectId === ref.subjectId &&
+    JSON.stringify([...l.teacherIds].sort()) === t &&
+    JSON.stringify([...l.classIds].sort()) === c);
+}
+
+let studentsTouched = false; // האם המשתמשת נגעה במקטע התלמידים בחלונית הנוכחית
+
 // initialSet: סט מזהים לסימון התחלתי (מעריכה); בלי פרמטר — משמרים את הסימונים הנוכחיים
 function renderLessonStudents(initialSet) {
   const ctx = modalCtx;
@@ -623,6 +635,12 @@ function renderLessonStudents(initialSet) {
   const clsSel = document.getElementById('new-student-class');
   clsSel.hidden = checkedClasses.length <= 1;
   clsSel.innerHTML = checkedClasses.map(cid => '<option value="' + cid + '">' + esc(klass(cid) ? klass(cid).name : '') + '</option>').join('');
+
+  // סנכרון לקבוצה: כמה משבצות נוספות יש לאותה קבוצה (מורים+מקצוע+כיתות כפי שמסומן כרגע)
+  const refTeachers = [...document.querySelectorAll('#lesson-teachers input:checked')].map(i => i.value);
+  const sibs = siblingLessons({ teacherIds: refTeachers, classIds: checkedClasses, subjectId: resolveSubjectId(false) }, ctx.editingId);
+  document.getElementById('students-sync-row').hidden = !sibs.length;
+  document.getElementById('students-sync-count').textContent = sibs.length;
   updateStudentsCount();
 }
 
@@ -891,6 +909,8 @@ function slotLessonsFor(ctx) {
 
 function openLessonModal(ctx) {
   modalCtx = ctx;
+  studentsTouched = false;
+  document.getElementById('students-sync').checked = true;
   const existing = slotLessonsFor(ctx);
   modalCtx.editingId = existing.length === 1 ? existing[0].id : null;
   fillModal();
@@ -1128,13 +1148,26 @@ function saveLessonFromModal() {
   const studentIds = [...document.querySelectorAll('#lesson-students input:checked')].map(i => i.value)
     .filter(sid => { const s = student(sid); return s && classIds.includes(s.classId); });
   const data = Object.assign({ teacherIds, classIds, studentIds }, common);
+  let savedLesson;
   if (ctx.editingId) {
-    Object.assign(byId(state.lessons, ctx.editingId), data);
+    savedLesson = byId(state.lessons, ctx.editingId);
+    Object.assign(savedLesson, data);
   } else {
-    state.lessons.push(Object.assign({ id: uid() }, data));
+    savedLesson = Object.assign({ id: uid() }, data);
+    state.lessons.push(savedLesson);
   }
+
+  // סנכרון שמות לכל המשבצות של אותה קבוצה — רק אם נגעו במקטע התלמידים והצ'קבוקס מסומן
+  let synced = 0;
+  if (studentsTouched && !document.getElementById('students-sync-row').hidden &&
+      document.getElementById('students-sync').checked) {
+    const sibs = siblingLessons(savedLesson, savedLesson.id);
+    sibs.forEach(l => { l.studentIds = [...studentIds]; });
+    synced = sibs.length;
+  }
+
   save(); closeModal(); renderAllBoards();
-  toast('השיבוץ נשמר ✓');
+  toast(synced ? '✓ נשמר, והשמות עודכנו גם ב-' + synced + ' משבצות נוספות של הקבוצה' : 'השיבוץ נשמר ✓');
 }
 
 /* ===== רשימות לדוגמה מתשפ"ג ===== */
@@ -1445,10 +1478,11 @@ function init() {
   document.getElementById('students-toggle').addEventListener('click', () => {
     const box = document.getElementById('students-box');
     box.hidden = !box.hidden;
+    if (!box.hidden) studentsTouched = true;
   });
-  document.getElementById('btn-new-student').addEventListener('click', addInlineStudent);
-  document.getElementById('new-student-name').addEventListener('keydown', e => { if (e.key === 'Enter') addInlineStudent(); });
-  document.getElementById('lesson-students').addEventListener('change', updateStudentsCount);
+  document.getElementById('btn-new-student').addEventListener('click', () => { studentsTouched = true; addInlineStudent(); });
+  document.getElementById('new-student-name').addEventListener('keydown', e => { if (e.key === 'Enter') { studentsTouched = true; addInlineStudent(); } });
+  document.getElementById('lesson-students').addEventListener('change', () => { studentsTouched = true; updateStudentsCount(); });
   document.getElementById('btn-clear-lessons').addEventListener('click', () => {
     if (!confirm('למחוק את כל השיבוצים? המורים, הכיתות והמקצועות יישארו.')) return;
     state.lessons = []; save(); renderAll(); toast('כל השיבוצים נמחקו');
