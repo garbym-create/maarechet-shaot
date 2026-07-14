@@ -410,8 +410,7 @@ function renderPersonal() {
       }
       const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
         (kind === 'class' ? l.classIds.includes(id) : l.teacherIds.includes(id)));
-      // שמות תלמידים — רק במערכת של מורה, לא של כיתה
-      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', kind === 'teacher')).join('') + '</td>';
+      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', true)).join('') + '</td>';
     }
     html += '</tr>';
   }
