@@ -337,7 +337,15 @@ function renderTeachersBoard() {
   wrap.innerHTML = boardHtml(cols, 'teacher');
   setDayLabelOffset(wrap);
   wrap.querySelectorAll('td.slot').forEach(td => td.addEventListener('click', () => {
-    if (copySource) { toast('שכפול עובד בלוח הכיתות — עברי לשם, או ✔ סיום'); return; }
+    if (copySource) {
+      // שיבוץ בלי כיתה (שהות/תפקיד) מדביקים ישירות על תא של מורה
+      if (copySource.lessons.every(l => !l.classIds.length)) {
+        pasteTeacherLessonTo(td.dataset.day, +td.dataset.hour, td.dataset.col);
+      } else {
+        toast('שיבוץ עם כיתות מדביקים בלוח הכיתות — או ✔ סיום');
+      }
+      return;
+    }
     openLessonModal({ day: td.dataset.day, hour: +td.dataset.hour, teacherId: td.dataset.col });
   }));
 }
@@ -831,6 +839,27 @@ function pasteLessonTo(day, hour, classId) {
   toast(added
     ? '✓ הודבקו ' + added + (sharedPaste ? ' — שיעור משותף, נכנס לכל הכיתות שלו' : '') + (skipped ? ' (' + skipped + ' כבר היו)' : '')
     : 'הכל כבר קיים בתא הזה');
+}
+
+// הדבקת שיבוץ ללא כיתה (שהות/תפקיד/פרטני) על תא בלוח המורים
+function pasteTeacherLessonTo(day, hour, teacherId) {
+  if (!copySource) return;
+  const blocked = freeDayViolators([teacherId], day);
+  if (blocked.length) { toast('⛔ יום ' + day + "' הוא יום חופשי של: " + blocked.join(', ')); return; }
+  let added = 0;
+  for (const src of copySource.lessons) {
+    const dup = state.lessons.some(l => l.day === day && l.hour === hour &&
+      !l.classIds.length && l.teacherIds.length === 1 && l.teacherIds[0] === teacherId &&
+      l.type === src.type && l.subjectId === src.subjectId);
+    if (dup) continue;
+    state.lessons.push({
+      id: uid(), day, hour, classIds: [], teacherIds: [teacherId],
+      subjectId: src.subjectId, type: src.type, note: src.note, studentIds: []
+    });
+    added++;
+  }
+  save(); renderAllBoards();
+  toast(added ? '✓ הודבק אצל ' + ((teacher(teacherId) || {}).name || '') + ' — ובסיום ✔' : 'כבר קיים בתא הזה');
 }
 
 /* ===== תלמידים — כרטיס הגדרות ===== */
