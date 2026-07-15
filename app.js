@@ -219,8 +219,14 @@ function studentsLineHtml(l, filterClassId) {
     (others ? (names ? ' ' : '') + '(+' + others + ' מכיתות אחרות)' : '') + '</span>';
 }
 
-// סדר תצוגת מורים: מחנכות לפי סדר הכיתות, אחריהן מחנכות ללא כיתה, ואז המקצועיים
+// סדר תצוגת מורים: הסדר הידני כפי שמסודר בהגדרות (חצים ↑↓).
+// הסדר נשמר במערך state.teachers ולכן עובר גם בגיבוי.
 function orderedTeachers() {
+  return state.teachers;
+}
+
+// סידור אוטומטי חד-פעמי: מחנכות לפי סדר הכיתות, אחריהן מחנכות ללא כיתה, ואז המקצועיים
+function autoSortTeachers() {
   const seen = new Set();
   const ordered = [];
   for (const c of state.classes) {
@@ -229,7 +235,9 @@ function orderedTeachers() {
   }
   for (const t of state.teachers) if (t.role === 'מחנכת' && !seen.has(t.id)) { ordered.push(t); seen.add(t.id); }
   for (const t of state.teachers) if (!seen.has(t.id)) { ordered.push(t); seen.add(t.id); }
-  return ordered;
+  state.teachers = ordered;
+  save(); renderAll();
+  toast('✓ המורים סודרו: מחנכות לפי סדר הכיתות ואז המקצועיים — אפשר לכוונן בחצים');
 }
 
 // סה"כ שובץ מול סה"כ מכסה
@@ -515,11 +523,12 @@ function renderSetup() {
 
   // מורים
   const tt = document.getElementById('teachers-table');
-  tt.innerHTML = '<tr><th>שם</th><th>תפקיד</th><th>פרונטלי</th><th>פרטני</th><th>שהות</th><th>ימים חופשיים</th><th></th></tr>' +
+  tt.innerHTML = '<tr><th title="סדר התצוגה בלוחות ובהדפסות">סדר</th><th>שם</th><th>תפקיד</th><th>פרונטלי</th><th>פרטני</th><th>שהות</th><th>ימים חופשיים</th><th></th></tr>' +
     state.teachers.map(t => {
       const q = t.quota || {};
       const fd = t.freeDays || [];
       return '<tr data-id="' + t.id + '">' +
+        '<td class="order-cell"><button class="btn-del" data-mv="up" title="הזזה למעלה">▲</button><button class="btn-del" data-mv="down" title="הזזה למטה">▼</button></td>' +
         '<td><input type="text" data-f="name" value="' + esc(t.name) + '"></td>' +
         '<td><select data-f="role"><option' + (t.role === 'מחנכת' ? ' selected' : '') + '>מחנכת</option><option' + (t.role === 'מקצועי' ? ' selected' : '') + '>מקצועי</option></select></td>' +
         '<td><input type="number" min="0" data-f="frontal" value="' + (+q.frontal || 0) + '"></td>' +
@@ -541,6 +550,13 @@ function renderSetup() {
     tr.querySelectorAll('[data-fd]').forEach(inp => inp.addEventListener('change', () => {
       t.freeDays = [...tr.querySelectorAll('[data-fd]:checked')].map(i => i.dataset.fd);
       save(); renderAllBoards();
+    }));
+    tr.querySelectorAll('[data-mv]').forEach(b => b.addEventListener('click', () => {
+      const i = state.teachers.findIndex(x => x.id === t.id);
+      const j = b.dataset.mv === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= state.teachers.length) return;
+      [state.teachers[i], state.teachers[j]] = [state.teachers[j], state.teachers[i]];
+      save(); renderSetup(); renderAllBoards();
     }));
     tr.querySelector('.btn-del').addEventListener('click', () => {
       const used = state.lessons.filter(l => l.teacherIds.includes(t.id)).length;
@@ -1507,6 +1523,59 @@ function updatePickerCount() {
     document.querySelectorAll('#picker-list input:checked').length;
 }
 
+/* ===== ייצוא לוח לאקסל / וורד (טבלת HTML — נפתחת ישירות בשתי התוכנות) ===== */
+function buildBoardExportHtml(mode, format) {
+  const cols = mode === 'class'
+    ? state.classes.map(c => ({ id: c.id, name: c.name, sub: (teacher(c.homeroomTeacherId) || {}).name || '' }))
+    : orderedTeachers().map(t => {
+        const { tot, qtot } = teacherTotals(t);
+        return { id: t.id, name: t.name, sub: tot + '/' + qtot + " שע'" };
+      });
+  const title = (state.settings.schoolName ? state.settings.schoolName + ' — ' : '') +
+    (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + (state.settings.year || '');
+  let table = '<table border="1" dir="rtl" style="border-collapse:collapse;font-family:Arial;font-size:10pt">' +
+    '<tr style="background:#e3e3e3;font-weight:bold"><th>יום</th><th>שעה</th>' +
+    cols.map(c => '<th>' + esc(c.name) + (c.sub ? '<br>' + esc(c.sub) : '') + '</th>').join('') + '</tr>';
+  for (const day of DAYS) {
+    const hrs = hoursFor(day);
+    if (!hrs) continue;
+    for (let h = 1; h <= hrs; h++) {
+      table += '<tr>';
+      if (h === 1) table += '<td rowspan="' + hrs + '" style="font-weight:bold;background:#eee;vertical-align:top">' + day + "'</td>";
+      table += '<td style="font-weight:bold">' + h + '</td>';
+      for (const c of cols) {
+        const ls = state.lessons.filter(l => l.day === day && l.hour === h &&
+          (mode === 'class' ? l.classIds.includes(c.id) : l.teacherIds.includes(c.id)));
+        const parts = ls.map(l => {
+          const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : (l.type !== 'פרונטלי' ? l.type : '');
+          const who = mode === 'class'
+            ? (l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה')
+            : l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
+          return '<b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') + (l.note ? ' (' + esc(l.note) + ')' : '');
+        });
+        table += '<td style="vertical-align:top">' + parts.join('<br>') + '</td>';
+      }
+      table += '</tr>';
+    }
+  }
+  table += '</table>';
+  const pageCss = format === 'doc' ? '<style>@page{size:A4 landscape;margin:1cm}</style>' : '';
+  return '﻿<html dir="rtl"><head><meta charset="UTF-8">' + pageCss + '</head><body>' +
+    '<h2 style="text-align:center;font-family:Arial">' + esc(title) + '</h2>' + table + '</body></html>';
+}
+
+function exportBoardFile(mode, format) {
+  const html = buildBoardExportHtml(mode, format);
+  const blob = new Blob([html], { type: format === 'xls' ? 'application/vnd.ms-excel' : 'application/msword' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (mode === 'class' ? 'לוח-כיתות' : 'לוח-מורים') + '-' +
+    (state.settings.year || '').replace(/["\s]/g, '') + (format === 'xls' ? '.xls' : '.doc');
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ הקובץ ירד להורדות' + (format === 'xls' ? ' — אם אקסל שואל על הפורמט, מאשרים ונפתח רגיל' : ''));
+}
+
 /* ===== טאבים ורינדור כללי ===== */
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -1664,6 +1733,11 @@ function init() {
   });
   document.getElementById('btn-print-classes').addEventListener('click', () => printBoard('class'));
   document.getElementById('btn-print-teachers').addEventListener('click', () => printBoard('teacher'));
+  document.getElementById('btn-xls-classes').addEventListener('click', () => exportBoardFile('class', 'xls'));
+  document.getElementById('btn-doc-classes').addEventListener('click', () => exportBoardFile('class', 'doc'));
+  document.getElementById('btn-xls-teachers').addEventListener('click', () => exportBoardFile('teacher', 'xls'));
+  document.getElementById('btn-doc-teachers').addEventListener('click', () => exportBoardFile('teacher', 'doc'));
+  document.getElementById('btn-sort-teachers').addEventListener('click', autoSortTeachers);
 
   // חלונית
   document.getElementById('modal-close').addEventListener('click', closeModal);
