@@ -181,9 +181,23 @@ function renderConflictBar() {
 
 /* ===== רינדור לוחות ===== */
 // filterClassId: בתצוגה של כיתה מסוימת מציגים רק את תלמידיה, עם מונה לשאר (קבוצות מעורבבות)
-// שמות שאר המורים בשיעור (מלבד זה של העמודה) — 2, 3 או יותר
+// שמות שאר המורים בשיעור (מלבד זה של העמודה) — 2, 3 או יותר. מלמדים "יחד" אותו שיעור.
 function coTeacherNames(l, excludeId) {
   return l.teacherIds.filter(t => t !== excludeId).map(t => teacher(t) ? teacher(t).name : '').filter(Boolean);
+}
+
+// מורים בשיעורים אחרים באותה משבצת (יום+שעה) שחולקים כיתה — קבוצות מקבילות ("במקביל")
+function parallelTeacherNames(l, excludeId) {
+  const names = new Set();
+  for (const o of state.lessons) {
+    if (o.id === l.id || o.day !== l.day || o.hour !== l.hour) continue;
+    if (!o.classIds.some(c => l.classIds.includes(c))) continue;
+    for (const t of o.teacherIds) {
+      if (t === excludeId || l.teacherIds.includes(t)) continue;
+      const tt = teacher(t); if (tt) names.add(tt.name);
+    }
+  }
+  return [...names];
 }
 
 function chipHtml(l, mode, showStudents, filterClassId, filterTeacherId) {
@@ -200,6 +214,8 @@ function chipHtml(l, mode, showStudents, filterClassId, filterTeacherId) {
       const others = coTeacherNames(l, filterTeacherId);
       if (others.length) coLine = '<span class="chip-coteacher">🤝 עם ' + esc(others.join(', ')) + '</span>';
     }
+    const par = parallelTeacherNames(l, filterTeacherId);
+    if (par.length) coLine += '<span class="chip-parallel">‖ במקביל: ' + esc(par.join(', ')) + '</span>';
   }
   const typeBadge = (l.type && l.type !== 'פרונטלי' && (sub || mode === 'class'))
     ? ' <span class="chip-type">' + esc(l.type) + '</span>' : '';
@@ -1417,6 +1433,8 @@ function printBoard(mode) { // 'class' | 'teacher'
                 const others = coTeacherNames(l, c.id);
                 if (others.length) whoHtml += ' <span class="pc-co">🤝 עם ' + esc(others.join(', ')) + '</span>';
               }
+              const par = parallelTeacherNames(l, c.id);
+              if (par.length) whoHtml += ' <span class="pc-parallel">‖ במקביל: ' + esc(par.join(', ')) + '</span>';
             }
             return '<div class="pcell"><b>' + esc(sub) + '</b>' + whoHtml +
               (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + '</div>';
@@ -1473,6 +1491,8 @@ function personalCellHtml(l, kind, targetId) {
       const others = coTeacherNames(l, targetId);
       if (others.length) who += ' <span class="pc-co">🤝 עם ' + esc(others.join(', ')) + '</span>';
     }
+    const par = parallelTeacherNames(l, targetId);
+    if (par.length) who += ' <span class="pc-parallel">‖ במקביל: ' + esc(par.join(', ')) + '</span>';
   }
   const all = lessonStudents(l).map(s => student(s)).filter(Boolean);
   let stLine = '';
@@ -1572,6 +1592,10 @@ function buildBoardExportHtml(mode, format) {
           if (mode === 'teacher' && l.teacherIds.length > 1) {
             const others = coTeacherNames(l, c.id);
             if (others.length) who += ' (עם ' + others.join(', ') + ')';
+          }
+          if (mode === 'teacher') {
+            const par = parallelTeacherNames(l, c.id);
+            if (par.length) who += ' ‖ במקביל: ' + par.join(', ');
           }
           return '<b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') + (l.note ? ' (' + esc(l.note) + ')' : '');
         });
