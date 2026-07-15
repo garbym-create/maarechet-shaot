@@ -181,16 +181,25 @@ function renderConflictBar() {
 
 /* ===== רינדור לוחות ===== */
 // filterClassId: בתצוגה של כיתה מסוימת מציגים רק את תלמידיה, עם מונה לשאר (קבוצות מעורבבות)
-function chipHtml(l, mode, showStudents, filterClassId) {
+// שמות שאר המורים בשיעור (מלבד זה של העמודה) — 2, 3 או יותר
+function coTeacherNames(l, excludeId) {
+  return l.teacherIds.filter(t => t !== excludeId).map(t => teacher(t) ? teacher(t).name : '').filter(Boolean);
+}
+
+function chipHtml(l, mode, showStudents, filterClassId, filterTeacherId) {
   const sub = l.subjectId ? subject(l.subjectId) : null;
   const color = sub ? sub.color : '#b8bdc9';
   let mainLabel = sub ? sub.name : (l.type !== 'פרונטלי' ? l.type : 'שיעור');
-  let secondLine = '', missing = false;
+  let secondLine = '', missing = false, coLine = '';
   if (mode === 'class') {
     secondLine = l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ');
     if (!secondLine) { secondLine = '❓ חסר מורה'; missing = true; }
   } else {
     secondLine = l.classIds.map(c => klass(c) ? klass(c).name : '').filter(Boolean).join(' + ');
+    if (l.teacherIds.length > 1) {
+      const others = coTeacherNames(l, filterTeacherId);
+      if (others.length) coLine = '<span class="chip-coteacher">🤝 עם ' + esc(others.join(', ')) + '</span>';
+    }
   }
   const typeBadge = (l.type && l.type !== 'פרונטלי' && (sub || mode === 'class'))
     ? ' <span class="chip-type">' + esc(l.type) + '</span>' : '';
@@ -201,6 +210,7 @@ function chipHtml(l, mode, showStudents, filterClassId) {
   return '<span class="chip' + shared + '" style="--sub-color:' + color + '22;--sub-border:' + color + '" title="' + esc(title) + '">' +
     '<span class="chip-subject">' + esc(mainLabel) + typeBadge + '</span>' +
     (secondLine ? '<span class="chip-teachers' + (missing ? ' missing' : '') + '">' + esc(secondLine) + '</span>' : '') +
+    coLine +
     (l.note ? '<span class="chip-note">' + esc(l.note) + '</span>' : '') +
     (showStudents && lessonStudents(l).length ? studentsLineHtml(l, filterClassId) : '') +
     '</span>';
@@ -285,7 +295,7 @@ function boardHtml(columns, mode) {
         if (mode === 'class' && !cls && confSet.has('missing|' + day + '|' + h + '|' + col.id)) cls = ' warn-dup';
         if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
-          lessons.map(l => chipHtml(l, mode, mode === 'class', mode === 'class' ? col.id : undefined)).join('') + '</td>';
+          lessons.map(l => chipHtml(l, mode, mode === 'class', mode === 'class' ? col.id : undefined, mode === 'teacher' ? col.id : undefined)).join('') + '</td>';
       }
       html += '</tr>';
     }
@@ -448,7 +458,7 @@ function renderPersonal() {
       }
       const lessons = state.lessons.filter(l => l.day === day && l.hour === h &&
         (kind === 'class' ? l.classIds.includes(id) : l.teacherIds.includes(id)));
-      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', true, kind === 'class' ? id : undefined)).join('') + '</td>';
+      html += '<td>' + lessons.map(l => chipHtml(l, kind === 'class' ? 'class' : 'teacher', true, kind === 'class' ? id : undefined, kind === 'teacher' ? id : undefined)).join('') + '</td>';
     }
     html += '</tr>';
   }
@@ -1403,6 +1413,10 @@ function printBoard(mode) { // 'class' | 'teacher'
             } else {
               const cn = l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
               whoHtml = cn ? ' ' + esc(cn) : '';
+              if (l.teacherIds.length > 1) {
+                const others = coTeacherNames(l, c.id);
+                if (others.length) whoHtml += ' <span class="pc-co">🤝 עם ' + esc(others.join(', ')) + '</span>';
+              }
             }
             return '<div class="pcell"><b>' + esc(sub) + '</b>' + whoHtml +
               (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + '</div>';
@@ -1455,6 +1469,10 @@ function personalCellHtml(l, kind, targetId) {
   } else {
     const cnm = l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
     who = cnm ? ' ' + esc(cnm) : '';
+    if (l.teacherIds.length > 1) {
+      const others = coTeacherNames(l, targetId);
+      if (others.length) who += ' <span class="pc-co">🤝 עם ' + esc(others.join(', ')) + '</span>';
+    }
   }
   const all = lessonStudents(l).map(s => student(s)).filter(Boolean);
   let stLine = '';
@@ -1548,9 +1566,13 @@ function buildBoardExportHtml(mode, format) {
           (mode === 'class' ? l.classIds.includes(c.id) : l.teacherIds.includes(c.id)));
         const parts = ls.map(l => {
           const sub = l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : (l.type !== 'פרונטלי' ? l.type : '');
-          const who = mode === 'class'
+          let who = mode === 'class'
             ? (l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה')
             : l.classIds.map(x => klass(x) ? klass(x).name : '').filter(Boolean).join(' + ');
+          if (mode === 'teacher' && l.teacherIds.length > 1) {
+            const others = coTeacherNames(l, c.id);
+            if (others.length) who += ' (עם ' + others.join(', ') + ')';
+          }
           return '<b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') + (l.note ? ' (' + esc(l.note) + ')' : '');
         });
         table += '<td style="vertical-align:top">' + parts.join('<br>') + '</td>';

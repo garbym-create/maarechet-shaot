@@ -166,6 +166,8 @@ td.slot.flash { animation: flash 1.6s ease; }
 .chip .chip-subject { font-weight: 700; display: block; }
 .chip .chip-teachers { color: #4d4a5e; display: block; font-size: .76rem; }
 .chip .chip-teachers.missing { color: var(--warn); font-weight: 800; }
+.chip .chip-coteacher { display: block; font-size: .72rem; color: #00795f; font-weight: 700; }
+.pc-co { color: #00795f; font-weight: 700; }
 .chip .chip-note { color: var(--muted); font-size: .72rem; display: block; }
 .chip .chip-type { font-size: .68rem; background: rgba(255,255,255,.65); border-radius: 6px; padding: 0 5px; }
 .chip.shared::after { content: "🔗"; font-size: .7rem; float: left; }
