@@ -604,13 +604,13 @@ function renderSetup() {
       '<td><select data-f="homeroom"><option value="">—</option>' +
       state.teachers.map(t => '<option value="' + t.id + '"' + (c.homeroomTeacherId === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') +
       '</select></td>' +
-      '<td><button class="btn-del" title="מחיקה">🗑️</button></td></tr>'
+      '<td><button class="btn-del" data-del-row title="מחיקה">🗑️</button></td></tr>'
     ).join('');
   ct.querySelectorAll('tr[data-id]').forEach(tr => {
     const c = klass(tr.dataset.id);
     tr.querySelector('[data-f="name"]').addEventListener('change', e => { c.name = e.target.value.trim() || c.name; save(); renderAllBoards(); });
     tr.querySelector('[data-f="homeroom"]').addEventListener('change', e => { c.homeroomTeacherId = e.target.value || null; save(); renderAllBoards(); });
-    tr.querySelector('.btn-del').addEventListener('click', () => {
+    tr.querySelector('[data-del-row]').addEventListener('click', () => {
       const used = state.lessons.filter(l => l.classIds.includes(c.id)).length;
       if (!confirm('למחוק את כיתה ' + c.name + '?' + (used ? ' (יש לה ' + used + ' שיבוצים — הם יוסרו ממנה)' : ''))) return;
       state.lessons.forEach(l => l.classIds = l.classIds.filter(x => x !== c.id));
@@ -630,13 +630,13 @@ function renderSetup() {
       '<tr data-id="' + sb.id + '">' +
       '<td><input type="text" data-f="name" value="' + esc(sb.name) + '"></td>' +
       '<td><input type="color" data-f="color" value="' + sb.color + '"></td>' +
-      '<td><button class="btn-del" title="מחיקה">🗑️</button></td></tr>'
+      '<td><button class="btn-del" data-del-row title="מחיקה">🗑️</button></td></tr>'
     ).join('');
   st.querySelectorAll('tr[data-id]').forEach(tr => {
     const sb = subject(tr.dataset.id);
     tr.querySelector('[data-f="name"]').addEventListener('change', e => { sb.name = e.target.value.trim() || sb.name; save(); renderAllBoards(); });
     tr.querySelector('[data-f="color"]').addEventListener('change', e => { sb.color = e.target.value; save(); renderAllBoards(); });
-    tr.querySelector('.btn-del').addEventListener('click', () => {
+    tr.querySelector('[data-del-row]').addEventListener('click', () => {
       if (!confirm('למחוק את המקצוע ' + sb.name + '? שיבוצים קיימים יישארו בלי מקצוע.')) return;
       state.lessons.forEach(l => { if (l.subjectId === sb.id) l.subjectId = null; });
       state.classes.forEach(c => c.subjectQuotas = (c.subjectQuotas || []).filter(q => q.subjectId !== sb.id));
