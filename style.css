@@ -468,3 +468,7 @@ table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layou
   .print-page.landscape { page: sheetland; }
   @page sheetland { size: A4 landscape; margin: 8mm; }
 }
+
+/* פוטר זכויות יוצרים */
+.site-credit { text-align: center; padding: 14px; color: var(--muted); font-size: .85rem; line-height: 1.6; }
+.site-credit .copyright { font-size: .78rem; opacity: .85; }
