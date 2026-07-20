@@ -440,6 +440,9 @@ table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layou
 .pcell i { color: #222; font-style: normal; }
 .pc-missing { font-weight: 800; }
 .sheet-title small { font-weight: 600; font-size: 9pt; color: #222; }
+.sheet-stamp { text-align: left; font-size: 7pt; color: #555; margin: 2pt 0 0; }
+.print-only { display: none; }
+@media print { .print-only { display: block; } }
 .sheet-table .offcell { background: #e9e9e9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #777; }
 .pc-students { color: #222; }
 
