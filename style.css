@@ -155,6 +155,8 @@ td.slot.dayoff {
 td.slot.dayoff:hover { background: repeating-linear-gradient(45deg, #f3f2f8, #f3f2f8 6px, #eae7f4 6px, #eae7f4 12px); }
 td.slot.conflict { outline: 2px solid var(--danger); outline-offset: -2px; background: var(--danger-soft); }
 td.slot.warn-dup { outline: 2px dashed var(--warn); outline-offset: -2px; background: var(--warn-soft); }
+td.slot.stud-dup { outline: 2px solid #f2c200; outline-offset: -2px; background: #fffbe0; }
+.conflict-item.stud .tag { color: #b98900; }
 td.slot.flash { animation: flash 1.6s ease; }
 @keyframes flash { 0%,60% { background: #ffe9a8; } 100% { background: transparent; } }
 

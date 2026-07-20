@@ -133,6 +133,16 @@ function computeConflicts() {
             text: 'המורה ' + teacher(tid).name + ' משובץ/ת ב-' + ids.length + ' שיעורים שונים ביום ' + day + "' שעה " + h });
         }
       }
+      // תלמיד שמשובץ בשתי קבוצות שונות באותה שעה — חיווי צהוב
+      const perStudent = {};
+      for (const l of slot) for (const sid of lessonStudents(l)) (perStudent[sid] = perStudent[sid] || []).push(l.id);
+      for (const [sid, ids] of Object.entries(perStudent)) {
+        if (ids.length > 1 && student(sid)) {
+          const st = student(sid);
+          conflicts.push({ kind: 'student', day, hour: h, id: st.classId, lessonIds: ids,
+            text: 'התלמיד/ה ' + st.name + ' משובץ/ת ב-' + ids.length + ' קבוצות — יום ' + day + "' שעה " + h });
+        }
+      }
       // שיבוץ ביום חופשי של מורה (למשל כשהיום החופשי סומן אחרי שהשיבוץ כבר היה קיים)
       for (const l of slot) for (const tid of l.teacherIds) {
         const t = teacher(tid);
@@ -165,8 +175,8 @@ function renderConflictBar() {
   bar.hidden = conflicts.length === 0;
   document.getElementById('conflict-count').textContent = conflicts.length;
   list.innerHTML = conflicts.map((c, i) =>
-    '<button class="conflict-item ' + (c.kind !== 'teacher' ? 'warn' : '') + '" data-i="' + i + '">' +
-    '<span class="tag">' + (c.kind === 'teacher' ? '⛔ התנגשות מורה:' : '❓ להשלמה:') + '</span> ' + esc(c.text) + '</button>'
+    '<button class="conflict-item ' + (c.kind === 'teacher' ? '' : c.kind === 'student' ? 'stud' : 'warn') + '" data-i="' + i + '">' +
+    '<span class="tag">' + (c.kind === 'teacher' ? '⛔ התנגשות מורה:' : c.kind === 'student' ? '🟡 תלמיד כפול:' : '❓ להשלמה:') + '</span> ' + esc(c.text) + '</button>'
   ).join('');
   list.querySelectorAll('.conflict-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -299,6 +309,9 @@ function boardHtml(columns, mode) {
   // שיעורים שמעורבים בהתנגשות מורה — מסומנים גם בלוח הכיתות
   const badLessons = new Set();
   for (const c of conflicts) if (c.kind === 'teacher') c.lessonIds.forEach(id => badLessons.add(id));
+  // שיעורים עם תלמיד כפול — מסגרת צהובה בלוח הכיתות
+  const dupStudentLessons = new Set();
+  for (const c of conflicts) if (c.kind === 'student') c.lessonIds.forEach(id => dupStudentLessons.add(id));
 
   for (const day of DAYS) {
     const hrs = hoursFor(day);
@@ -313,6 +326,7 @@ function boardHtml(columns, mode) {
         const confKey = (mode === 'class' ? 'class' : 'teacher') + '|' + day + '|' + h + '|' + col.id;
         let cls = confSet.has(confKey) ? (mode === 'class' ? ' warn-dup' : ' conflict') : '';
         if (mode === 'class' && lessons.some(l => badLessons.has(l.id))) cls = ' conflict';
+        else if (mode === 'class' && lessons.some(l => dupStudentLessons.has(l.id))) cls = ' stud-dup';
         if (mode === 'class' && !cls && confSet.has('missing|' + day + '|' + h + '|' + col.id)) cls = ' warn-dup';
         if (mode === 'teacher' && (teacher(col.id).freeDays || []).includes(day)) cls += ' dayoff';
         html += '<td class="slot' + cls + '" data-day="' + day + '" data-hour="' + h + '" data-col="' + col.id + '">' +
@@ -466,7 +480,7 @@ function renderPersonal() {
     sub = 'פרונטלי ' + c.frontal + '/' + (+q.frontal || 0) + ' · פרטני ' + c.prati + '/' + (+q.prati || 0) + ' · שהות ' + c.shehut + '/' + (+q.shehut || 0);
   }
 
-  let html = '<h2 class="pv-title">' + (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') + 'מערכת שעות ' + esc(state.settings.year || '') + ' — ' + esc(target.name) + '</h2>' +
+  let html = '<h2 class="pv-title">מערכת שעות ' + esc(state.settings.year || '') + ' — ' + esc(target.name) + '</h2>' +
     '<p class="pv-sub">' + esc(sub) + '</p>' +
     '<table class="pv-table"><tr><th style="width:42px">שעה</th>' + DAYS.map(d => '<th>' + d + "'</th>").join('') + '</tr>';
   for (let h = 1; h <= maxHours(); h++) {
@@ -490,8 +504,7 @@ function renderPersonal() {
 /* ===== דוח פיצולים ותלמידים ===== */
 function renderSplitsReport(view) {
   const assignedAnywhere = new Set(state.lessons.flatMap(lessonStudents));
-  let html = '<h2 class="pv-title">' + (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
-    'דוח פיצולים ושיוך תלמידים — ' + esc(state.settings.year || '') + '</h2>' +
+  let html = '<h2 class="pv-title">דוח פיצולים ושיוך תלמידים — ' + esc(state.settings.year || '') + '</h2>' +
     '<p class="pv-sub">כל המשבצות שבהן הכיתה מפוצלת לקבוצות (2+ שיבוצים באותה שעה) או שיש שיוך תלמידים</p>';
   let any = false;
 
@@ -571,7 +584,6 @@ function applyTeacherRowOrder() {
 /* ===== הגדרות ===== */
 function renderSetup() {
   const s = state.settings;
-  document.getElementById('set-school-name').value = s.schoolName || '';
   document.getElementById('set-year').value = s.year || '';
   document.getElementById('set-hours-default').value = s.hoursDefault;
   document.getElementById('set-hours-friday').value = s.hoursFriday;
@@ -1442,8 +1454,7 @@ function printBoard(mode) { // 'class' | 'teacher'
   const chunks = [];
   for (let i = 0; i < cols.length; i += SHEET_COLS_PER_PAGE) chunks.push(cols.slice(i, i + SHEET_COLS_PER_PAGE));
 
-  const title = (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
-    (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + esc(state.settings.year || '');
+  const title = (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + esc(state.settings.year || '');
 
   document.getElementById('print-sheets').innerHTML = chunks.map((chunk, pi) => {
     let h = '<section class="print-page"><h2 class="sheet-title">' + title +
@@ -1454,7 +1465,8 @@ function printBoard(mode) { // 'class' | 'teacher'
         (c.sub2 ? '<br><small dir="ltr" title="פרונטלי + פרטני + שהות">' + esc(c.sub2) + '</small>' : '') +
         '</th>').join('') + '</tr>';
     for (const day of DAYS) {
-      const hrs = hoursFor(day);
+      // בסדין הכיתות מדפיסים עד שעה 7 לכל היותר (בקשת המשתמשת); סדין המורים — מלא
+      const hrs = mode === 'class' ? Math.min(hoursFor(day), 7) : hoursFor(day);
       if (!hrs) continue;
       for (let hr = 1; hr <= hrs; hr++) {
         h += '<tr' + (hr === 1 ? ' class="day-start"' : '') + '>';
@@ -1510,12 +1522,16 @@ function fitSheetsToPage() {
   holder.style.cssText = 'display:block;position:absolute;top:0;inset-inline-start:0;width:' + width + 'px;visibility:hidden;z-index:-1';
   holder.querySelectorAll('.print-page').forEach(pg => {
     const tbl = pg.querySelector('table');
+    tbl.style.height = '';
     const title = pg.querySelector('.sheet-title');
     const avail = availBase - (title ? title.offsetHeight + 4 : 0);
-    for (const f of [1, 0.92, 0.85, 0.78, 0.7, 0.62, 0.55, 0.48, 0.42]) {
+    // דו-כיווני: נבחר המקדם הגדול ביותר שעדיין נכנס בעמוד — הדפסה גדולה וקריאה
+    for (const f of [1.9, 1.75, 1.6, 1.45, 1.3, 1.15, 1, 0.92, 0.85, 0.78, 0.7, 0.62, 0.55, 0.48, 0.42]) {
       tbl.style.setProperty('--fs', f);
       if (tbl.offsetHeight <= avail) break;
     }
+    // מתיחה לגובה העמוד המלא — הטבלה מחלקת את העודף בין השורות
+    if (tbl.offsetHeight < avail) tbl.style.height = avail + 'px';
   });
   holder.style.cssText = '';
 }
@@ -1558,7 +1574,6 @@ function personalPageHtml(kind, target) {
     subTitle = 'פרונטלי ' + c.frontal + '/' + (+q.frontal || 0) + ' · פרטני ' + c.prati + '/' + (+q.prati || 0) + ' · שהות ' + c.shehut + '/' + (+q.shehut || 0);
   }
   let h = '<section class="print-page landscape"><h2 class="sheet-title">' +
-    (state.settings.schoolName ? esc(state.settings.schoolName) + ' — ' : '') +
     'מערכת שעות ' + esc(state.settings.year || '') + ' — ' + esc(target.name) +
     (subTitle ? ' <small>(' + esc(subTitle) + ')</small>' : '') + '</h2>';
   h += '<table class="sheet-table"><tr><th class="w1">שעה</th>' + DAYS.map(d => '<th>' + d + "'</th>").join('') + '</tr>';
@@ -1612,8 +1627,7 @@ function buildBoardExportHtml(mode, format) {
         const { tot, qtot } = teacherTotals(t);
         return { id: t.id, name: t.name, sub: tot + '/' + qtot + " שע'" };
       });
-  const title = (state.settings.schoolName ? state.settings.schoolName + ' — ' : '') +
-    (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + (state.settings.year || '');
+  const title = (mode === 'class' ? 'לוח כיתות' : 'לוח מורים') + ' — ' + (state.settings.year || '');
   let table = '<table border="1" dir="rtl" style="border-collapse:collapse;font-family:Arial;font-size:10pt">' +
     '<tr style="background:#e3e3e3;font-weight:bold"><th>יום</th><th>שעה</th>' +
     cols.map(c => '<th>' + esc(c.name) + (c.sub ? '<br>' + esc(c.sub) : '') + '</th>').join('') + '</tr>';
@@ -1675,8 +1689,7 @@ function switchTab(name) {
 }
 
 function renderHeader() {
-  document.getElementById('school-title').textContent =
-    (state.settings.schoolName ? state.settings.schoolName + ' — ' : '') + 'מתכנן מערכת השעות';
+  document.getElementById('school-title').textContent = 'מתכנן מערכת השעות';
   document.getElementById('year-subtitle').textContent = 'שנה"ל ' + (state.settings.year || '');
 }
 
@@ -1744,7 +1757,6 @@ function init() {
       save(); renderAllBoards();
     });
   };
-  bindSetting('set-school-name', 'schoolName');
   bindSetting('set-year', 'year');
   bindSetting('set-hours-default', 'hoursDefault', true);
   bindSetting('set-hours-friday', 'hoursFriday', true);
