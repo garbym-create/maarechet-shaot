@@ -12,10 +12,10 @@ const UNLOCK_KEY = 'maarechet-shaot-unlocked';
 const PASS_HASH = '70dfd884ba653f643467d4121e9213811358049a242df0b9b715e7d8ea4e3fa6';
 const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
 const LESSON_TYPES = ['פרונטלי', 'מגמה', 'פרטני', 'שהות', 'תפקיד', 'שחרית', 'ייעוץ', 'אחר'];
-// מיפוי סוג שעה -> קטגוריית מכסה
+// מיפוי סוג שעה -> קטגוריית מכסה. רק פרטני ושהות בקטגוריות שלהם;
+// כל השאר (פרונטלי, מגמה, שחרית, אחר, תפקיד, ייעוץ) נספר כפרונטלי.
 const TYPE_TO_CAT = {
-  'פרונטלי': 'frontal', 'מגמה': 'frontal', 'שחרית': 'frontal', 'אחר': 'frontal',
-  'פרטני': 'prati', 'תפקיד': 'prati', 'ייעוץ': 'prati',
+  'פרטני': 'prati',
   'שהות': 'shehut'
 };
 const CAT_LABELS = { frontal: 'פרונטלי', prati: 'פרטני', shehut: 'שהות' };
