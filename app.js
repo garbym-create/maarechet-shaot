@@ -1520,9 +1520,11 @@ function printBoard(mode) { // 'class' | 'teacher'
     for (let i = 0; i < cols.length; i += SHEET_COLS_PER_PAGE) chunks.push({ cols: cols.slice(i, i + SHEET_COLS_PER_PAGE), group: '' });
   } else {
     const all = orderedTeachers();
+    // מחנכת לצורך הפיצול = תפקידה "מחנכת" או שהיא מחנכת של כיתה כלשהי (גם אם התפקיד לא עודכן)
+    const isHomeroom = t => t.role === 'מחנכת' || state.classes.some(c => c.homeroomTeacherId === t.id);
     const groups = [
-      { label: 'מחנכות', list: all.filter(t => t.role === 'מחנכת') },
-      { label: 'מורים מקצועיים', list: all.filter(t => t.role !== 'מחנכת') }
+      { label: 'מחנכות', list: all.filter(isHomeroom) },
+      { label: 'מורים מקצועיים', list: all.filter(t => !isHomeroom(t)) }
     ].filter(g => g.list.length);
     for (const g of groups) {
       const cols = g.list.map(teacherCol);
