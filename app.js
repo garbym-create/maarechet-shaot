@@ -465,11 +465,12 @@ function studentLessonsAt(st, day, hour) {
 function renderPersonalTargets() {
   const kind = document.getElementById('personal-kind').value;
   const sel = document.getElementById('personal-target');
-  sel.hidden = kind === 'splits';
-  document.getElementById('btn-print-multi').hidden = kind === 'splits';
-  document.getElementById('btn-doc-splits').hidden = kind !== 'splits'; // וורד — רק לדוח הפיצולים
+  const isReport = kind === 'splits' || kind === 'clusters'; // דוחות — בלי בחירת יעד
+  sel.hidden = isReport;
+  document.getElementById('btn-print-multi').hidden = isReport;
+  document.getElementById('btn-doc-splits').hidden = !isReport; // וורד — רק לדוחות
   document.getElementById('print-picker').hidden = true; // נסגר בהחלפת סוג
-  if (kind === 'splits') return;
+  if (isReport) return;
   const prev = sel.value;
   if (kind === 'student') {
     sel.innerHTML = studentsSorted().map(s =>
@@ -487,6 +488,7 @@ function renderPersonal() {
   const id = document.getElementById('personal-target').value;
   const view = document.getElementById('personal-view');
   if (kind === 'splits') { renderSplitsReport(view); return; }
+  if (kind === 'clusters') { renderClustersReport(view); return; }
   const target = kind === 'class' ? klass(id) : kind === 'student' ? student(id) : teacher(id);
   if (!target) { view.innerHTML = '<p class="section-hint" style="text-align:center">אין נתונים להצגה עדיין.</p>'; return; }
 
@@ -628,6 +630,125 @@ function exportSplitsDoc() {
   a.click();
   URL.revokeObjectURL(a.href);
   toast('✓ דוח הפיצולים ירד להורדות כקובץ וורד');
+}
+
+/* ===== דוח מקבצים — מורה + התלמידים שלומדים איתו/ה מכל הכיתות =====
+   מקבץ מזוהה לפי הרכב קבוע: אותם מורים + בדיוק אותם תלמידים.
+   נכללים רק שיעורים עם שיוך תלמידים (מליאה אינה מקבץ). */
+function computeClusters() {
+  const dayIx = d => DAYS.indexOf(d);
+  const map = new Map();
+  for (const l of state.lessons) {
+    if (!lessonStudents(l).length) continue;
+    const tKey = [...l.teacherIds].sort().join(',');
+    const sKey = [...lessonStudents(l)].sort().join(',');
+    const key = tKey + '|' + sKey;
+    if (!map.has(key)) map.set(key, { tKey, teacherIds: [...l.teacherIds], studentIds: [...lessonStudents(l)], lessons: [] });
+    map.get(key).lessons.push(l);
+  }
+
+  const clusters = [];
+  for (const c of map.values()) {
+    c.lessons.sort((a, b) => dayIx(a.day) - dayIx(b.day) || a.hour - b.hour);
+    c.hours = c.lessons.map(l => ({ day: l.day, hour: l.hour }));
+    c.weekly = c.lessons.length;
+    // מקצועות ייחודיים; שיעור בלי מקצוע — לפי סוג השיעור
+    c.subjects = [...new Set(c.lessons.map(l =>
+      l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type).filter(Boolean))];
+    // תלמידים לפי סדר הכיתות ואז סדרם בכיתה
+    c.students = studentsSorted().filter(s => c.studentIds.includes(s.id));
+    clusters.push(c);
+  }
+
+  // קיבוץ לפי מורה, בסדר המורים שנקבע; שיעורים ללא מורה — בסוף
+  const groups = [];
+  for (const t of orderedTeachers()) {
+    const mine = clusters.filter(c => c.teacherIds.includes(t.id));
+    if (mine.length) groups.push({ teacher: t, clusters: mine });
+  }
+  const orphans = clusters.filter(c => !c.teacherIds.some(id => teacher(id)));
+  if (orphans.length) groups.push({ teacher: null, clusters: orphans });
+
+  for (const g of groups) {
+    g.clusters.sort((a, b) => dayIx(a.hours[0].day) - dayIx(b.hours[0].day) || a.hours[0].hour - b.hours[0].hour);
+    g.weekly = g.clusters.reduce((n, c) => n + c.weekly, 0);
+  }
+  return groups;
+}
+
+// "מרי (ז1) · עדי (ז2)"
+function clusterStudentsText(c) {
+  return c.students.map(s => s.name + (klass(s.classId) ? ' (' + klass(s.classId).name + ')' : '')).join(' · ');
+}
+// "א׳ 1 · ג׳ 4"
+function clusterHoursText(c) {
+  return c.hours.map(h => h.day + "' " + h.hour).join(' · ');
+}
+function clusterTitle(c, i) {
+  return 'מקבץ ' + (i + 1) + (c.subjects.length ? ' · ' + c.subjects.join(' / ') : '') +
+    ' · ' + c.students.length + ' תלמידים · ' + c.weekly + ' ש"ש';
+}
+// מורים נוספים באותו מקבץ (מלבד זה שתחת שמו הוא מוצג)
+function clusterCoTeachers(c, tid) {
+  return c.teacherIds.filter(id => id !== tid).map(id => teacher(id) ? teacher(id).name : '').filter(Boolean);
+}
+
+function renderClustersReport(view) {
+  const groups = computeClusters();
+  let html = '<h2 class="pv-title">דוח מקבצים — ' + esc(state.settings.year || '') + '</h2>' +
+    '<p class="pv-sub">לכל מורה: המקבצים שהוא/היא מלמד/ת — התלמידים מכל הכיתות והשעות השבועיות</p>';
+
+  for (const g of groups) {
+    const tid = g.teacher ? g.teacher.id : null;
+    html += '<div class="cq-class"><h3>' + (g.teacher ? '👩‍🏫 ' + esc(g.teacher.name) : '❓ ללא מורה') +
+      ' <span class="section-hint">— ' + g.weekly + ' ש"ש במקבצים</span></h3>' +
+      '<table class="cq-table splits-table"><tr><th>מקבץ</th><th>תלמידים</th><th>שעות</th></tr>';
+    g.clusters.forEach((c, i) => {
+      const co = tid ? clusterCoTeachers(c, tid) : [];
+      html += '<tr><td class="splits-slot">' + esc(clusterTitle(c, i)) +
+        (co.length ? '<div class="section-hint">🤝 עם ' + esc(co.join(', ')) + '</div>' : '') + '</td>' +
+        '<td>' + esc(clusterStudentsText(c)) + '</td>' +
+        '<td>' + esc(clusterHoursText(c)) + '</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  view.innerHTML = html + (groups.length ? '' :
+    '<p class="section-hint" style="text-align:center">אין עדיין מקבצים. משייכים תלמידים לשיעור בחלונית השיבוץ (🧑‍🎓).</p>') +
+    printStamp().replace('class="sheet-stamp"', 'class="sheet-stamp print-only"');
+}
+
+/* ===== ייצוא דוח מקבצים לוורד ===== */
+function buildClustersExportHtml() {
+  const groups = computeClusters();
+  let body = '<h2 style="text-align:center;font-family:Arial">דוח מקבצים — ' + esc(state.settings.year || '') + '</h2>';
+  for (const g of groups) {
+    const tid = g.teacher ? g.teacher.id : null;
+    let rows = '';
+    g.clusters.forEach((c, i) => {
+      const co = tid ? clusterCoTeachers(c, tid) : [];
+      rows += '<tr><td style="font-weight:bold;vertical-align:top;white-space:nowrap">' + esc(clusterTitle(c, i)) +
+        (co.length ? '<br><span style="font-weight:normal;font-size:9pt">🤝 עם ' + esc(co.join(', ')) + '</span>' : '') + '</td>' +
+        '<td>' + esc(clusterStudentsText(c)) + '</td>' +
+        '<td style="white-space:nowrap">' + esc(clusterHoursText(c)) + '</td></tr>';
+    });
+    body += '<h3 style="font-family:Arial;margin:14pt 0 4pt">' +
+      (g.teacher ? esc(g.teacher.name) : 'ללא מורה') + ' — ' + g.weekly + ' ש"ש במקבצים</h3>' +
+      '<table border="1" dir="rtl" style="border-collapse:collapse;font-family:Arial;font-size:10pt;width:100%">' +
+      '<tr style="background:#e3e3e3;font-weight:bold"><th>מקבץ</th><th>תלמידים</th><th>שעות</th></tr>' + rows + '</table>';
+  }
+  body += '<p style="font-size:8pt;color:#555;font-family:Arial">' + printStamp().replace(/<[^>]+>/g, '') + '</p>';
+  return '﻿<html dir="rtl"><head><meta charset="UTF-8"></head><body>' + body + '</body></html>';
+}
+
+function exportClustersDoc() {
+  const blob = new Blob([buildClustersExportHtml()], { type: 'application/msword' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'דוח-מקבצים-' + (state.settings.year || '').replace(/["\s]/g, '') + '.doc';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ דוח המקבצים ירד להורדות כקובץ וורד');
 }
 
 function slotHasMissing(slot, roster) {
@@ -1924,7 +2045,7 @@ function init() {
   document.getElementById('personal-target').addEventListener('change', renderPersonal);
   document.getElementById('btn-print').addEventListener('click', () => {
     const kind = document.getElementById('personal-kind').value;
-    if (kind === 'splits') { window.print(); return; } // דוח פיצולים — הדפסה רגילה (רב-עמודים)
+    if (kind === 'splits' || kind === 'clusters') { window.print(); return; } // דוחות — הדפסה רגילה (רב-עמודים)
     printPersonal(kind, [document.getElementById('personal-target').value]);
   });
   document.getElementById('btn-print-multi').addEventListener('click', () => {
@@ -1950,7 +2071,10 @@ function init() {
   document.getElementById('btn-xls-teachers').addEventListener('click', () => exportBoardFile('teacher', 'xls'));
   document.getElementById('btn-doc-teachers').addEventListener('click', () => exportBoardFile('teacher', 'doc'));
   document.getElementById('btn-sort-teachers').addEventListener('click', autoSortTeachers);
-  document.getElementById('btn-doc-splits').addEventListener('click', exportSplitsDoc);
+  document.getElementById('btn-doc-splits').addEventListener('click', () => {
+    if (document.getElementById('personal-kind').value === 'clusters') exportClustersDoc();
+    else exportSplitsDoc();
+  });
 
   // חלונית
   document.getElementById('modal-close').addEventListener('click', closeModal);
