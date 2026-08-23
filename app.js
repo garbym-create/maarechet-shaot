@@ -1645,6 +1645,20 @@ function printStamp() {
     now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) + '</p>';
 }
 
+/* סימון "פרטני" בהדפסות — רק כשיש גם מקצוע.
+   בלי מקצוע הסוג כבר משמש ככותרת התא, ואין צורך לשכפל. */
+function printTypeLabel(l) {
+  return (l.type === 'פרטני' && l.subjectId && subject(l.subjectId)) ? 'פרטני' : '';
+}
+function printTypeHtml(l) {
+  const t = printTypeLabel(l);
+  return t ? ' <span class="pc-type">' + esc(t) + '</span>' : '';
+}
+function printTypeText(l) {
+  const t = printTypeLabel(l);
+  return t ? ' (' + t + ')' : '';
+}
+
 function printBoard(mode) { // 'class' | 'teacher'
   const teacherCol = t => {
     const { tot, qtot } = teacherTotals(t);
@@ -1716,7 +1730,7 @@ function printBoard(mode) { // 'class' | 'teacher'
               const par = parallelTeacherNames(l, c.id);
               if (par.length) whoHtml += ' <span class="pc-parallel">‖ במקביל: ' + esc(par.join(', ')) + '</span>';
             }
-            return '<div class="pcell"><b>' + esc(sub) + '</b>' + whoHtml +
+            return '<div class="pcell"><b>' + esc(sub) + '</b>' + printTypeHtml(l) + whoHtml +
               (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + '</div>';
           }).join('') + '</td>';
         }
@@ -1788,7 +1802,7 @@ function personalCellHtml(l, kind, targetId) {
     const names = shown.map(s => s.name).join(', ');
     if (names || others) stLine = '<div class="pc-students">🧑‍🎓 ' + esc(names) + (others ? (names ? ' ' : '') + '(+' + others + ')' : '') + '</div>';
   }
-  return '<div class="pcell"><b>' + esc(sub) + '</b>' + who + (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + stLine + '</div>';
+  return '<div class="pcell"><b>' + esc(sub) + '</b>' + printTypeHtml(l) + who + (l.note ? ' <i>(' + esc(l.note) + ')</i>' : '') + stLine + '</div>';
 }
 
 function personalPageHtml(kind, target) {
@@ -1885,7 +1899,7 @@ function buildBoardExportHtml(mode, format) {
             const par = parallelTeacherNames(l, c.id);
             if (par.length) who += ' ‖ במקביל: ' + par.join(', ');
           }
-          return '<b>' + esc(sub) + '</b>' + (who ? ' ' + esc(who) : '') + (l.note ? ' (' + esc(l.note) + ')' : '');
+          return '<b>' + esc(sub) + '</b>' + printTypeText(l) + (who ? ' ' + esc(who) : '') + (l.note ? ' (' + esc(l.note) + ')' : '');
         });
         table += '<td style="vertical-align:top">' + parts.join('<br>') + '</td>';
       }

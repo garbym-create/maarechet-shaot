@@ -439,6 +439,7 @@ table.sheet-table { --fs: 1; width: 100%; border-collapse: collapse; table-layou
 .pcell b { font-weight: 800; }
 .pcell i { color: #222; font-style: normal; }
 .pc-missing { font-weight: 800; }
+.pc-type { font-size: .8em; border: .3pt solid #666; border-radius: 4px; padding: 0 3px; }
 .sheet-title small { font-weight: 600; font-size: 9pt; color: #222; }
 .sheet-stamp { text-align: left; font-size: 7pt; color: #555; margin: 2pt 0 0; }
 .print-only { display: none; }
