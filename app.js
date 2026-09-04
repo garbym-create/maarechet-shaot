@@ -789,13 +789,16 @@ function gradeSlots(g) {
     for (let h = 1; h <= hoursFor(day); h++) {
       const inSlot = state.lessons.filter(l => l.day === day && l.hour === h &&
         l.classIds.some(id => cls.has(id)));
-      const withSt = inSlot.filter(l => lessonStudents(l).length);
-      if (!withSt.length) continue; // אין פיצול עם שיוך תלמידים — לא רלוונטי לדוח
-      // קבוצה מקבילה = שיעור שמכסה בדיוק את אותן כיתות שכבה כמו קבוצה משויכת.
-      // כך מוצגות גם קבוצות שטרם שויכו להן תלמידים (המורה כבר משובץ, השיוך באמצע),
-      // ובלי לגרור שיעורי מליאה של כיתה אחרת שאינה חלק מהפיצול.
-      const sigs = new Set(withSt.map(sig));
-      const groups = inSlot.filter(l => lessonStudents(l).length || sigs.has(sig(l)));
+      // פיצול מזוהה לפי המבנה, לא לפי השיוך: כמה שיעורים מקבילים על אותה קבוצת
+      // כיתות (= הכיתות מתחלקות בין המורים), או שיעור שכבר שויכו אליו תלמידים.
+      // כך מורה שכבר שובץ מופיע גם לפני שחולקו התלמידים, ובלי לגרור שיעור מליאה
+      // של כיתה אחרת שאינה חלק מהפיצול.
+      const bySig = {};
+      for (const l of inSlot) (bySig[sig(l)] = bySig[sig(l)] || []).push(l);
+      const splitSigs = new Set(Object.keys(bySig).filter(k => bySig[k].length >= 2));
+      for (const l of inSlot) if (lessonStudents(l).length) splitSigs.add(sig(l));
+      const groups = inSlot.filter(l => splitSigs.has(sig(l)));
+      if (!groups.length) continue; // אין פיצול בשעה זו
       const assigned = new Set(groups.flatMap(lessonStudents));
       // כיתה "מפוצלת בשעה זו" אם היא מופיעה בשיעור קבוצתי או שאחד מתלמידיה שובץ.
       // רק לכיתות כאלה בודקים מי חסר — כיתה בשיעור מליאה רגיל לא תסומן.
