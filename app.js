@@ -462,10 +462,13 @@ function studentLessonsAt(st, day, hour) {
   return mine.length ? mine : slot.filter(l => !lessonStudents(l).length);
 }
 
+// סוגי הדוחות בבורר "מערכת אישית": בלי בחירת יעד, עם ייצוא לוורד
+const isReportKind = k => k === 'splits' || k === 'clusters' || k === 'grades';
+
 function renderPersonalTargets() {
   const kind = document.getElementById('personal-kind').value;
   const sel = document.getElementById('personal-target');
-  const isReport = kind === 'splits' || kind === 'clusters'; // דוחות — בלי בחירת יעד
+  const isReport = isReportKind(kind); // דוחות — בלי בחירת יעד
   sel.hidden = isReport;
   document.getElementById('btn-print-multi').hidden = isReport;
   document.getElementById('btn-doc-splits').hidden = !isReport; // וורד — רק לדוחות
@@ -489,6 +492,7 @@ function renderPersonal() {
   const view = document.getElementById('personal-view');
   if (kind === 'splits') { renderSplitsReport(view); return; }
   if (kind === 'clusters') { renderClustersReport(view); return; }
+  if (kind === 'grades') { renderGradeReport(view); return; }
   const target = kind === 'class' ? klass(id) : kind === 'student' ? student(id) : teacher(id);
   if (!target) { view.innerHTML = '<p class="section-hint" style="text-align:center">אין נתונים להצגה עדיין.</p>'; return; }
 
@@ -749,6 +753,159 @@ function exportClustersDoc() {
   a.click();
   URL.revokeObjectURL(a.href);
   toast('✓ דוח המקבצים ירד להורדות כקובץ וורד');
+}
+
+/* ===== דוח שכבתי — פיצולים ושיוך תלמידים לפי שכבה ===== */
+// "מרי (ז1)" — שם עם הכיתה, כי בשכבה מעורבבות כמה כיתות
+function studentWithClass(s) {
+  return s.name + (klass(s.classId) ? ' (' + klass(s.classId).name + ')' : '');
+}
+// תלמידי השיעור לפי סדר הכיתות (ולא לפי סדר השיוך)
+function lessonStudentsSorted(l) {
+  const ids = lessonStudents(l);
+  return studentsSorted().filter(s => ids.includes(s.id));
+}
+
+// הכיתות מקובצות לשכבות, לפי סדר הכיתות שהוגדר
+function gradeGroups() {
+  const out = [];
+  for (const c of state.classes) {
+    const g = classGrade(c.name) || 'אחר';
+    let e = out.find(x => x.grade === g);
+    if (!e) out.push(e = { grade: g, classes: [] });
+    e.classes.push(c);
+  }
+  return out;
+}
+
+// שעות הפיצול של השכבה: הקבוצות בכל שעה, ומי מהשכבה עדיין לא שובץ בה
+function gradeSlots(g) {
+  const cls = new Set(g.classes.map(c => c.id));
+  const roster = g.classes.flatMap(c => studentsOf(c.id));
+  const slots = [];
+  for (const day of DAYS) {
+    for (let h = 1; h <= hoursFor(day); h++) {
+      const groups = state.lessons.filter(l => l.day === day && l.hour === h &&
+        l.classIds.some(id => cls.has(id)) && lessonStudents(l).length);
+      if (!groups.length) continue; // אין פיצול עם שיוך תלמידים — לא רלוונטי לדוח
+      const assigned = new Set(groups.flatMap(lessonStudents));
+      // כיתה "מפוצלת בשעה זו" אם היא מופיעה בשיעור קבוצתי או שאחד מתלמידיה שובץ.
+      // רק לכיתות כאלה בודקים מי חסר — כיתה בשיעור מליאה רגיל לא תסומן.
+      const split = new Set();
+      for (const l of groups) for (const id of l.classIds) if (cls.has(id)) split.add(id);
+      for (const s of roster) if (assigned.has(s.id)) split.add(s.classId);
+      slots.push({
+        day, hour: h, groups,
+        missing: roster.filter(s => split.has(s.classId) && !assigned.has(s.id))
+      });
+    }
+  }
+  return slots;
+}
+
+function gradeGroupLabel(l) {
+  return l.subjectId && subject(l.subjectId) ? subject(l.subjectId).name : l.type;
+}
+function gradeGroupTeachers(l) {
+  return l.teacherIds.map(t => teacher(t) ? teacher(t).name : '').filter(Boolean).join(' + ') || '❓ חסר מורה';
+}
+function gradeHeadText(g, roster) {
+  return g.classes.map(c => c.name).join(', ') + ' · ' + roster.length + ' תלמידים';
+}
+
+function renderGradeReport(view) {
+  const assignedAnywhere = new Set(state.lessons.flatMap(lessonStudents));
+  let html = '<h2 class="pv-title">דוח שכבתי — ' + esc(state.settings.year || '') + '</h2>' +
+    '<p class="pv-sub">לכל שכבה: בכל שעת פיצול — איזה מורה לוקח אילו תלמידים, ומי עדיין לא שובץ</p>';
+  let any = false;
+
+  for (const g of gradeGroups()) {
+    const roster = g.classes.flatMap(c => studentsOf(c.id));
+    const never = roster.filter(s => !assignedAnywhere.has(s.id));
+    const slots = gradeSlots(g);
+    if (!slots.length && !never.length) continue;
+    any = true;
+    html += '<div class="cq-class"><h3>שכבה ' + esc(g.grade) + "' <span class=\"section-hint\">— " +
+      esc(gradeHeadText(g, roster)) + '</span></h3>';
+    if (never.length) {
+      html += '<div class="splits-never">🕐 <b>טרם שובצו לאף קבוצה:</b> ' +
+        esc(never.map(studentWithClass).join(', ')) + '</div>';
+    }
+    if (slots.length) {
+      let rows = '';
+      for (const sl of slots) {
+        const span = sl.groups.length + (sl.missing.length ? 1 : 0);
+        sl.groups.forEach((l, i) => {
+          rows += '<tr>' +
+            (i === 0 ? '<td rowspan="' + span + '" class="splits-slot">יום ' + sl.day + "' שעה " + sl.hour + '</td>' : '') +
+            '<td><b>' + esc(gradeGroupLabel(l)) + '</b>' +
+            (l.note ? ' <span class="section-hint">(' + esc(l.note) + ')</span>' : '') + '</td>' +
+            '<td>' + esc(gradeGroupTeachers(l)) + '</td>' +
+            '<td>' + esc(lessonStudentsSorted(l).map(studentWithClass).join(', ')) + '</td></tr>';
+        });
+        if (sl.missing.length) {
+          rows += '<tr><td colspan="3" class="splits-missing">❓ לא משובצים בשעה זו: ' +
+            esc(sl.missing.map(studentWithClass).join(', ')) + '</td></tr>';
+        }
+      }
+      html += '<table class="cq-table splits-table"><tr><th>מתי</th><th>קבוצה</th><th>מורה</th><th>תלמידים</th></tr>' +
+        rows + '</table>';
+    }
+    html += '</div>';
+  }
+
+  view.innerHTML = html + (any ? '' :
+    '<p class="section-hint" style="text-align:center">אין עדיין פיצולים עם שיוך תלמידים. משייכים תלמידים בחלונית השיבוץ (🧑‍🎓).</p>') +
+    printStamp().replace('class="sheet-stamp"', 'class="sheet-stamp print-only"');
+}
+
+/* ===== ייצוא הדוח השכבתי לוורד ===== */
+function buildGradeExportHtml() {
+  const assignedAnywhere = new Set(state.lessons.flatMap(lessonStudents));
+  let body = '<h2 style="text-align:center;font-family:Arial">דוח שכבתי — ' + esc(state.settings.year || '') + '</h2>';
+  for (const g of gradeGroups()) {
+    const roster = g.classes.flatMap(c => studentsOf(c.id));
+    const never = roster.filter(s => !assignedAnywhere.has(s.id));
+    const slots = gradeSlots(g);
+    if (!slots.length && !never.length) continue;
+    body += '<h3 style="font-family:Arial;margin:14pt 0 4pt">שכבה ' + esc(g.grade) + "' — " +
+      esc(gradeHeadText(g, roster)) + '</h3>';
+    if (never.length) {
+      body += '<p style="background:#fff6d6;padding:6pt;font-family:Arial">🕐 <b>טרם שובצו לאף קבוצה:</b> ' +
+        esc(never.map(studentWithClass).join(', ')) + '</p>';
+    }
+    if (!slots.length) continue;
+    let rows = '';
+    for (const sl of slots) {
+      const span = sl.groups.length + (sl.missing.length ? 1 : 0);
+      sl.groups.forEach((l, i) => {
+        rows += '<tr>' +
+          (i === 0 ? '<td rowspan="' + span + '" style="font-weight:bold;vertical-align:top;white-space:nowrap">יום ' + sl.day + "' שעה " + sl.hour + '</td>' : '') +
+          '<td><b>' + esc(gradeGroupLabel(l)) + '</b>' + (l.note ? ' (' + esc(l.note) + ')' : '') + '</td>' +
+          '<td>' + esc(gradeGroupTeachers(l)) + '</td>' +
+          '<td>' + esc(lessonStudentsSorted(l).map(studentWithClass).join(', ')) + '</td></tr>';
+      });
+      if (sl.missing.length) {
+        rows += '<tr><td colspan="3" style="color:#b98900;font-weight:bold;background:#fff6d6">❓ לא משובצים בשעה זו: ' +
+          esc(sl.missing.map(studentWithClass).join(', ')) + '</td></tr>';
+      }
+    }
+    body += '<table border="1" dir="rtl" style="border-collapse:collapse;font-family:Arial;font-size:10pt;width:100%">' +
+      '<tr style="background:#e3e3e3;font-weight:bold"><th>מתי</th><th>קבוצה</th><th>מורה</th><th>תלמידים</th></tr>' +
+      rows + '</table>';
+  }
+  body += '<p style="font-size:8pt;color:#555;font-family:Arial">' + printStamp().replace(/<[^>]+>/g, '') + '</p>';
+  return '﻿<html dir="rtl"><head><meta charset="UTF-8"></head><body>' + body + '</body></html>';
+}
+
+function exportGradeDoc() {
+  const blob = new Blob([buildGradeExportHtml()], { type: 'application/msword' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'דוח-שכבתי-' + (state.settings.year || '').replace(/["\s]/g, '') + '.doc';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ הדוח השכבתי ירד להורדות כקובץ וורד');
 }
 
 function slotHasMissing(slot, roster) {
@@ -2059,7 +2216,7 @@ function init() {
   document.getElementById('personal-target').addEventListener('change', renderPersonal);
   document.getElementById('btn-print').addEventListener('click', () => {
     const kind = document.getElementById('personal-kind').value;
-    if (kind === 'splits' || kind === 'clusters') { window.print(); return; } // דוחות — הדפסה רגילה (רב-עמודים)
+    if (isReportKind(kind)) { window.print(); return; } // דוחות — הדפסה רגילה (רב-עמודים)
     printPersonal(kind, [document.getElementById('personal-target').value]);
   });
   document.getElementById('btn-print-multi').addEventListener('click', () => {
@@ -2086,7 +2243,9 @@ function init() {
   document.getElementById('btn-doc-teachers').addEventListener('click', () => exportBoardFile('teacher', 'doc'));
   document.getElementById('btn-sort-teachers').addEventListener('click', autoSortTeachers);
   document.getElementById('btn-doc-splits').addEventListener('click', () => {
-    if (document.getElementById('personal-kind').value === 'clusters') exportClustersDoc();
+    const kind = document.getElementById('personal-kind').value;
+    if (kind === 'clusters') exportClustersDoc();
+    else if (kind === 'grades') exportGradeDoc();
     else exportSplitsDoc();
   });
 
