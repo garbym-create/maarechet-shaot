@@ -291,6 +291,7 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 .chip-students { display: block; font-size: .72rem; color: #5b566e; background: rgba(255,255,255,.55); border-radius: 6px; padding: 1px 4px; margin-top: 2px; text-align: right; }
 .splits-slot { font-weight: 800; color: var(--primary); white-space: nowrap; }
 .splits-missing { color: var(--warn); font-weight: 700; background: var(--warn-soft); }
+.splits-pending { color: var(--warn); font-weight: 700; }
 .splits-never { background: var(--pend-soft); border-radius: 10px; padding: 6px 10px; margin: 4px 0 8px; font-size: .9rem; }
 
 /* חצי סידור המורים + ידית גרירה */

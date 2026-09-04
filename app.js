@@ -782,12 +782,20 @@ function gradeGroups() {
 function gradeSlots(g) {
   const cls = new Set(g.classes.map(c => c.id));
   const roster = g.classes.flatMap(c => studentsOf(c.id));
+  // חתימת הכיתות של שיעור, מוגבלת לכיתות השכבה — מזהה קבוצות מקבילות
+  const sig = l => l.classIds.filter(id => cls.has(id)).sort().join(',');
   const slots = [];
   for (const day of DAYS) {
     for (let h = 1; h <= hoursFor(day); h++) {
-      const groups = state.lessons.filter(l => l.day === day && l.hour === h &&
-        l.classIds.some(id => cls.has(id)) && lessonStudents(l).length);
-      if (!groups.length) continue; // אין פיצול עם שיוך תלמידים — לא רלוונטי לדוח
+      const inSlot = state.lessons.filter(l => l.day === day && l.hour === h &&
+        l.classIds.some(id => cls.has(id)));
+      const withSt = inSlot.filter(l => lessonStudents(l).length);
+      if (!withSt.length) continue; // אין פיצול עם שיוך תלמידים — לא רלוונטי לדוח
+      // קבוצה מקבילה = שיעור שמכסה בדיוק את אותן כיתות שכבה כמו קבוצה משויכת.
+      // כך מוצגות גם קבוצות שטרם שויכו להן תלמידים (המורה כבר משובץ, השיוך באמצע),
+      // ובלי לגרור שיעורי מליאה של כיתה אחרת שאינה חלק מהפיצול.
+      const sigs = new Set(withSt.map(sig));
+      const groups = inSlot.filter(l => lessonStudents(l).length || sigs.has(sig(l)));
       const assigned = new Set(groups.flatMap(lessonStudents));
       // כיתה "מפוצלת בשעה זו" אם היא מופיעה בשיעור קבוצתי או שאחד מתלמידיה שובץ.
       // רק לכיתות כאלה בודקים מי חסר — כיתה בשיעור מליאה רגיל לא תסומן.
@@ -841,7 +849,9 @@ function renderGradeReport(view) {
             '<td><b>' + esc(gradeGroupLabel(l)) + '</b>' +
             (l.note ? ' <span class="section-hint">(' + esc(l.note) + ')</span>' : '') + '</td>' +
             '<td>' + esc(gradeGroupTeachers(l)) + '</td>' +
-            '<td>' + esc(lessonStudentsSorted(l).map(studentWithClass).join(', ')) + '</td></tr>';
+            '<td>' + (lessonStudents(l).length
+              ? esc(lessonStudentsSorted(l).map(studentWithClass).join(', '))
+              : '<span class="splits-pending">⏳ טרם שויכו תלמידים</span>') + '</td></tr>';
         });
         if (sl.missing.length) {
           rows += '<tr><td colspan="3" class="splits-missing">❓ לא משובצים בשעה זו: ' +
@@ -883,7 +893,9 @@ function buildGradeExportHtml() {
           (i === 0 ? '<td rowspan="' + span + '" style="font-weight:bold;vertical-align:top;white-space:nowrap">יום ' + sl.day + "' שעה " + sl.hour + '</td>' : '') +
           '<td><b>' + esc(gradeGroupLabel(l)) + '</b>' + (l.note ? ' (' + esc(l.note) + ')' : '') + '</td>' +
           '<td>' + esc(gradeGroupTeachers(l)) + '</td>' +
-          '<td>' + esc(lessonStudentsSorted(l).map(studentWithClass).join(', ')) + '</td></tr>';
+          '<td>' + (lessonStudents(l).length
+            ? esc(lessonStudentsSorted(l).map(studentWithClass).join(', '))
+            : '<span style="color:#b98900;font-weight:bold">⏳ טרם שויכו תלמידים</span>') + '</td></tr>';
       });
       if (sl.missing.length) {
         rows += '<tr><td colspan="3" style="color:#b98900;font-weight:bold;background:#fff6d6">❓ לא משובצים בשעה זו: ' +
