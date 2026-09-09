@@ -306,6 +306,11 @@ table.setup-table.matrix input[type="number"] { width: 58px; }
 .btn-move:hover { opacity: 1; }
 
 .btn-del { background: none; border: none; cursor: pointer; font-size: .95rem; opacity: .55; }
+.st-name { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 3px 5px; border-radius: 5px; }
+/* אזור נגיעה נוח יותר במסך מגע */
+@media (pointer: coarse) { .st-name { padding: 7px 9px; } }
+.st-name:hover { background: rgba(0,0,0,.06); text-decoration: underline; }
+.st-edit { font: inherit; width: 7.5em; max-width: 55vw; border: 1px solid var(--primary); border-radius: 6px; padding: 1px 6px; }
 .btn-del:hover { opacity: 1; }
 .data-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 

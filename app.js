@@ -1344,8 +1344,11 @@ function renderStudentsCard() {
   const list = document.getElementById('students-list');
   if (!cid) { list.innerHTML = '<span class="section-hint">קודם צריך להגדיר כיתות</span>'; return; }
   list.innerHTML = studentsOf(cid).map(s =>
-    '<span class="student-tag">' + esc(s.name) + ' <button class="btn-del" data-sid="' + s.id + '" title="מחיקה">🗑</button></span>').join('') ||
+    '<span class="student-tag"><button class="st-name" data-edit="' + s.id + '" title="לחיצה לעריכת השם">' +
+    esc(s.name) + '</button> <button class="btn-del" data-sid="' + s.id + '" title="מחיקה">🗑</button></span>').join('') ||
     '<span class="section-hint">אין תלמידים בכיתה זו עדיין — הדביקי רשימה למעלה</span>';
+  list.querySelectorAll('[data-edit]').forEach(b =>
+    b.addEventListener('click', () => startEditStudent(b, b.dataset.edit)));
   list.querySelectorAll('[data-sid]').forEach(b => b.addEventListener('click', () => {
     const s = student(b.dataset.sid);
     if (!confirm('למחוק את ' + s.name + '? השם יוסר גם מכל הקבוצות שהוא משויך אליהן.')) return;
@@ -1353,6 +1356,40 @@ function renderStudentsCard() {
     state.students = state.students.filter(x => x.id !== s.id);
     save(); renderStudentsCard();
   }));
+}
+
+// עריכת שם תלמיד/ה במקום. המזהה נשמר, ולכן כל השיוכים לקבוצות נשמרים איתו.
+function startEditStudent(btn, sid) {
+  const s = student(sid);
+  if (!s) return;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'st-edit';
+  inp.value = s.name;
+  btn.replaceWith(inp);
+  inp.focus();
+  inp.select();
+  let done = false;
+  const finish = keep => {
+    if (done) return;
+    done = true;
+    const name = inp.value.trim();
+    if (keep && name && name !== s.name) {
+      // שם כפול בכיתה מותר (אפשר להבחין בכינוי), אבל מזהירים
+      const twin = studentsOf(s.classId).some(x => x.id !== s.id && x.name === name);
+      s.name = name;
+      save();
+      renderAll();
+      toast(twin ? '⚠️ השם עודכן — יש עוד תלמיד/ה בשם הזה בכיתה' : '✓ השם עודכן');
+      return;
+    }
+    renderStudentsCard();
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
 }
 
 function addStudentsFromPaste() {
